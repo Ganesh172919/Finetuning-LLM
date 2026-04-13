@@ -1,0 +1,239 @@
+# =============================================================================
+# SMALL-MOE TIER CONFIGURATION
+# =============================================================================
+# Total params: ~1-3B | Active params: ~300-600M per token
+# Hardware: Single 8×GPU node (8× A100-80GB or equivalent), training for days
+# Purpose: The actual "SOTA-pattern" reference implementation — everything
+#          in the prompt implemented and running for real.
+#
+# At frontier scale: See frontier_pattern.yaml for what changes.
+# =============================================================================
+
+# --- Model Architecture ---
+model:
+  type: "moe"
+  vocab_size: 128000               # 128k tokens
+  d_model: 2048                    # Base model dimension
+  n_layers: 24                     # Transformer depth
+  n_heads: 16                      # Query attention heads
+  n_kv_heads: 4                    # KV heads (4:1 GQA ratio for MLA)
+  d_head: 128                      # Per-head dimension
+  intermediate_dim: 5632           # ~8/3 * d_model, rounded to multiple of 128
+  max_seq_len: 4096                # Base pretraining sequence length
+  dropout: 0.0
+  rope_base: 10000
+  attention_type: "mla"            # MLA for Small-MoE — compressed KV cache
+
+  # MLA-specific config
+  mla:
+    latent_dim: 512                # Compressed KV latent dimension (<< n_kv_heads * d_head)
+    rope_dim: 64                   # Decoupled RoPE sub-component dimension
+    # KV cache: 512 floats/token vs 4*128*2=1024 for GQA — 2× smaller
+
+  weight_tying: false              # OFF above ~1B params (documented tradeoff)
+
+  # MoE configuration
+  moe_config:
+    n_shared_experts: 2            # Always-active shared experts (capture common knowledge)
+    n_routed_experts: 64           # Fine-grained routed expert pool
+    top_k: 8                       # Route to top-8 experts per token
+    expert_intermediate_dim: 512   # Each expert is small (fine-grained specialization)
+    bias_update_rate: 0.001        # γ: per-step bias update for aux-loss-free balancing
+    capacity_factor: 1.25          # Expert capacity headroom (should be unnecessary with good balancing)
+    # DeepSeek-V3: 671B total / 37B active = 18:1 ratio
+    # Our model: ~2B total / ~400M active = 5:1 ratio (smaller but same pattern)
+
+  # Multi-Token Prediction
+  mtp_config:
+    depth: 2                       # Predict 1 extra token (D=2 total: next + one more)
+    loss_weight: 0.3               # Weight for MTP auxiliary loss (main loss is 1.0)
+    # Training payoff: ~1.5× denser signal per forward pass
+    # Inference payoff: Free draft model for speculative decoding
+
+  # Hyper-connections (OFF by default — advanced, optional)
+  use_hyper_connections: false
+  hyper_connections:
+    n_streams: 2                   # Number of parallel residual streams
+    # NOTE: Exact manifold-constrained projection from DeepSeek-V4 is not fully public.
+    # This implements the openly-documented multi-stream hyper-connection.
+
+# --- Optimizer ---
+optimizer:
+  type: "hybrid_muon"              # Muon for 2D weights, AdamW for the rest
+  lr: 0.02                         # Peak learning rate (Muon typically uses higher LR than AdamW)
+  weight_decay: 0.1
+
+  # Muon-specific
+  muon:
+    momentum: 0.95                 # SGD momentum coefficient
+    nesterov: true                 # Nesterov momentum
+    ns_steps: 5                    # Newton-Schulz iterations (5 is standard)
+    eps: 1.0e-7                    # Numerical floor
+
+  # AdamW-specific (for non-2D params)
+  adamw:
+    beta1: 0.9
+    beta2: 0.95
+    eps: 1.0e-8
+
+  # WSD schedule
+  schedule: "wsd"
+  wsd:
+    warmup_steps: 500              # Linear warmup
+    stable_steps: 40000            # Long flat plateau at peak LR
+    decay_steps: 5000              # Short decay to final LR
+    min_lr: 0.001                  # Final LR (1/20th of peak)
+
+  grad_clip_norm: 1.0
+
+# --- Precision ---
+precision:
+  dtype: "bf16"                    # BF16 master weights and compute
+  fp8_enabled: false               # Enable for Hopper/Blackwell with sufficient scale
+  # FP8: forward in E4M3, gradients in E5M2 or BF16, master weights in BF16
+  # At frontier scale (DeepSeek-V3): FP8 enabled for 671B-param model
+
+# --- Data ---
+data:
+  train_data_path: "data/train.bin"
+  val_data_path: "data/val.bin"
+  batch_size: 4                    # Per-GPU batch size (MoE uses more memory)
+  gradient_accumulation_steps: 8   # Effective batch = 4 * 8 * 8(gpus) = 256
+  max_seq_len: 4096
+  num_workers: 4
+
+  mixture:
+    web: 0.50
+    code: 0.25
+    math: 0.15
+    synthetic: 0.05
+    curated: 0.05
+
+  packing:
+    enabled: true
+    document_boundary_masking: true
+
+  # Decontamination
+  decontamination:
+    enabled: true
+    ngram_size: 13                 # 13-gram overlap check
+    overlap_threshold: 0.8
+    benchmarks: ["mmlu", "gpqa", "aime", "humaneval", "gsm8k", "hle"]
+
+# --- Training ---
+training:
+  seed: 42
+  max_steps: 50000
+  log_every_n_steps: 10
+  eval_every_n_steps: 1000
+  checkpoint_every_n_steps: 2500
+  spike_detection_threshold: 5.0
+
+  # Sequence length curriculum
+  sequence_curriculum:
+    - [0, 4096]                    # Start at 4k
+    - [20000, 8192]                # Extend to 8k at step 20k
+    - [35000, 16384]               # Extend to 16k at step 35k
+
+  activation_checkpointing:
+    enabled: true
+    # Checkpoint every other layer (memory vs recompute tradeoff)
+    checkpoint_every_n_layers: 2
+
+# --- Parallelism ---
+parallelism:
+  dp: 4                            # Data parallel across 4 GPUs
+  tp: 1                            # Tensor parallel (not needed at 2B scale)
+  ep: 2                            # Expert parallel across 2 GPUs (64 experts / 2 = 32 per GPU)
+  pp: 1                            # Pipeline parallel (not needed)
+  # Total: 4 DP × 2 EP = 8 GPUs
+
+# --- Mid-Training / Context Extension ---
+mid_training:
+  enabled: true
+  rope_scaling: "yarn"             # "yarn" | "ntk" — YaRN for context extension
+  yarn:
+    scale: 4.0                     # 4× context extension (4k → 16k)
+    alpha: 1.0                     # Attention temperature scaling factor
+  steps: 2000                      # Brief annealing
+  data_mixture:                    # Higher quality, more curated
+    web: 0.30
+    code: 0.25
+    math: 0.20
+    curated: 0.15
+    textbook: 0.10
+
+# --- Post-Training ---
+post_training:
+  sft:
+    enabled: true
+    steps: 5000
+    lr: 1.0e-5
+    mask_prompt_tokens: true
+    think_token_enabled: true      # <|think|>...</|think|> for reasoning tasks
+
+  dpo:
+    enabled: true
+    steps: 2000
+    lr: 5.0e-6
+    beta: 0.1
+    reference_model_path: "checkpoints/small_moe/sft_final"
+
+  rlvr:
+    enabled: true
+    algorithm: "grpo"              # "grpo" | "dapo" | "gspo"
+    steps: 3000
+    lr: 1.0e-6
+    group_size: 8
+    clip_range: 0.2
+    kl_coeff: 0.0                  # DAPO: no KL penalty for reasoning
+
+    # DAPO refinements
+    dapo:
+      clip_higher: true
+      clip_range_higher: 0.28
+      dynamic_sampling: true
+      token_level_loss: true
+
+    # Verifiable rewards
+    rewards:
+      math: "exact_match"          # Exact/symbolic answer match
+      code: "unit_test"            # Execute and check test cases
+      format: "constraint_check"   # Programmatic format checker
+
+# --- Evaluation ---
+evaluation:
+  harness: "eval/harness.py"
+  suites:
+    - "mmlu_pro"
+    - "gpqa_diamond"
+    - "aime"
+    - "livecodebench"
+  decontamination_check: true
+  cost_aware_metrics: true
+
+# --- Serving ---
+serving:
+  quantization: "fp8"              # "bf16" | "fp8" | "nvfp4"
+  speculative_decoding:
+    enabled: true
+    draft_source: "mtp_heads"      # Use trained MTP heads as draft model
+    num_draft_tokens: 3
+
+# --- Logging ---
+logging:
+  wandb_enabled: true
+  wandb_project: "sota-llm-forge"
+  wandb_run_name: "small-moe-v1"
+  log_loss_curve: true
+  log_grad_norm: true
+  log_expert_load: true
+  log_lr_schedule: true
+  log_generated_samples: true
+
+# --- Checkpointing ---
+checkpointing:
+  save_dir: "checkpoints/small_moe"
+  save_optimizer_state: true
+  max_checkpoints_to_keep: 5
+  distributed: true                # Sharded checkpoint save/restore

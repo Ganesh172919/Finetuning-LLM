@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GRPO Training Visualization — Interactive Learning</title>
+    <style>
+        /* ============================================================
+           STYLES — Clean, Educational, Responsive
+           ============================================================ */
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface2: #1a1a2e;
+            --accent: #6c63ff;
+            --accent2: #00d2ff;
+            --success: #00e676;
+            --warning: #ffab00;
+            --error: #ff5252;
+            --text: #e0e0e0;
+            --text-dim: #888;
+            --border: #2a2a3e;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            color: var(--accent2);
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h3 {
+            font-size: 1.1rem;
+            color: var(--accent);
+            margin: 1.5rem 0 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            transition: border-color 0.3s;
+        }
+
+        .card:hover { border-color: var(--accent); }
+
+        /* Grid layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+
+        /* Visualization canvas */
+        .viz-container {
+            background: var(--surface2);
+            border-radius: 12px;
+            padding: 1rem;
+            margin: 1rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            border-radius: 8px;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin: 1rem 0;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        button:hover { background: #5a52e0; transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+
+        button.secondary {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+        }
+
+        button.secondary:hover { border-color: var(--accent); }
+
+        /* Sliders */
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin: 0.5rem 0;
+        }
+
+        .slider-group label {
+            min-width: 120px;
+            font-size: 0.9rem;
+            color: var(--text-dim);
+        }
+
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .value-display {
+            min-width: 60px;
+            text-align: right;
+            font-family: monospace;
+            color: var(--accent2);
+        }
+
+        /* Metrics */
+        .metric {
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            font-family: monospace;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-value.positive { color: var(--success); }
+        .metric-value.negative { color: var(--error); }
+        .metric-value.neutral { color: var(--warning); }
+
+        /* Flow diagram */
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin: 1rem 0;
+        }
+
+        .flow-step {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.8rem 1.2rem;
+            text-align: center;
+            font-size: 0.85rem;
+            min-width: 100px;
+            transition: all 0.3s;
+        }
+
+        .flow-step.active {
+            border-color: var(--accent);
+            background: rgba(108, 99, 255, 0.1);
+            box-shadow: 0 0 20px rgba(108, 99, 255, 0.2);
+        }
+
+        .flow-step .step-num {
+            font-size: 0.7rem;
+            color: var(--accent);
+            display: block;
+            margin-bottom: 0.2rem;
+        }
+
+        .flow-arrow {
+            color: var(--accent);
+            font-size: 1.2rem;
+        }
+
+        /* Response cards */
+        .response-card {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            font-family: monospace;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            position: relative;
+        }
+
+        .response-card.correct {
+            border-color: var(--success);
+            background: rgba(0, 230, 118, 0.05);
+        }
+
+        .response-card.incorrect {
+            border-color: var(--error);
+            background: rgba(255, 82, 82, 0.05);
+        }
+
+        .response-score {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            font-size: 0.8rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .response-score.high { background: var(--success); color: #000; }
+        .response-score.low { background: var(--error); color: #fff; }
+
+        /* Advantage bars */
+        .advantage-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.3rem 0;
+        }
+
+        .advantage-bar .label {
+            min-width: 80px;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        .advantage-bar .bar-container {
+            flex: 1;
+            height: 20px;
+            background: var(--surface2);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .advantage-bar .bar {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+            position: absolute;
+        }
+
+        .advantage-bar .bar.positive {
+            background: linear-gradient(90deg, var(--success), var(--accent2));
+            left: 50%;
+        }
+
+        .advantage-bar .bar.negative {
+            background: linear-gradient(90deg, var(--error), var(--warning));
+            right: 50%;
+        }
+
+        .advantage-bar .center-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--text-dim);
+        }
+
+        .advantage-bar .value {
+            min-width: 50px;
+            text-align: right;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+
+        /* Math formula */
+        .formula {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            font-family: 'Cambria Math', 'Times New Roman', serif;
+            font-size: 1.1rem;
+            text-align: center;
+            overflow-x: auto;
+        }
+
+        .formula .highlight { color: var(--accent); font-weight: bold; }
+        .formula .variable { color: var(--accent2); }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin: 1rem 0 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab {
+            padding: 0.7rem 1.2rem;
+            cursor: pointer;
+            color: var(--text-dim);
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .tab:hover { color: var(--text); }
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 1rem 0;
+        }
+
+        .tab-content.active { display: block; }
+
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+            cursor: help;
+            border-bottom: 1px dashed var(--text-dim);
+        }
+
+        .tooltip::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            padding: 0.5rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .tooltip:hover::after { opacity: 1; }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .animate-in { animation: slideIn 0.3s ease-out; }
+
+        /* Progress bar */
+        .progress-bar {
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+
+        .progress-bar .fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ============================================================
+             HEADER
+             ============================================================ -->
+        <h1>🎓 GRPO Training Visualization</h1>
+        <p class="subtitle">
+            Interactive exploration of Group Relative Policy Optimization —
+            the algorithm behind DeepSeek-R1
+        </p>
+
+        <!-- ============================================================
+             SECTION 1: OVERVIEW
+             ============================================================ -->
+        <h2>📚 What is GRPO?</h2>
+
+        <div class="card">
+            <p>
+                <strong>GRPO (Group Relative Policy Optimization)</strong> is the training
+                algorithm behind DeepSeek-R1, one of the most capable reasoning models.
+                Instead of comparing "chosen vs rejected" responses (like DPO), GRPO
+                generates <strong>N responses per prompt</strong> and ranks them against each other.
+            </p>
+
+            <div class="formula">
+                L<sub>GRPO</sub> = −𝔼[ min(
+                    <span class="variable">r<sub>t</sub></span> · <span class="variable">A<sub>t</sub></span>,
+                    clip(<span class="variable">r<sub>t</sub></span>, 1−<span class="highlight">ε</span>, 1+<span class="highlight">ε</span>) · <span class="variable">A<sub>t</sub></span>
+                ) ] + <span class="highlight">β</span> · KL(π ∥ π<sub>ref</sub>)
+            </div>
+        </div>
+
+        <!-- Flow diagram -->
+        <div class="flow-diagram" id="flowDiagram">
+            <div class="flow-step active" id="step1">
+                <span class="step-num">Step 1</span>
+                Sample Prompts
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" id="step2">
+                <span class="step-num">Step 2</span>
+                Generate N Responses
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" id="step3">
+                <span class="step-num">Step 3</span>
+                Score Rewards
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" id="step4">
+                <span class="step-num">Step 4</span>
+                Normalize Advantages
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" id="step5">
+                <span class="step-num">Step 5</span>
+                Update Policy
+            </div>
+        </div>
+
+        <!-- ============================================================
+             SECTION 2: INTERACTIVE SIMULATION
+             ============================================================ -->
+        <h2>🎮 Interactive Simulation</h2>
+
+        <div class="grid-2">
+            <!-- Controls -->
+            <div class="card">
+                <h3>Parameters</h3>
+
+                <div class="slider-group">
+                    <label>N Samples</label>
+                    <input type="range" id="nSamples" min="2" max="16" value="8" step="1">
+                    <span class="value-display" id="nSamplesVal">8</span>
+                </div>
+
+                <div class="slider-group">
+                    <label>Clip ε</label>
+                    <input type="range" id="clipEps" min="0.05" max="0.5" value="0.2" step="0.05">
+                    <span class="value-display" id="clipEpsVal">0.20</span>
+                </div>
+
+                <div class="slider-group">
+                    <label>KL β</label>
+                    <input type="range" id="klBeta" min="0.01" max="0.5" value="0.04" step="0.01">
+                    <span class="value-display" id="klBetaVal">0.04</span>
+                </div>
+
+                <div class="slider-group">
+                    <label>Reward Noise</label>
+                    <input type="range" id="rewardNoise" min="0" max="1" value="0.3" step="0.05">
+                    <span class="value-display" id="rewardNoiseVal">0.30</span>
+                </div>
+
+                <div class="controls">
+                    <button onclick="runSimulation()">▶ Run Step</button>
+                    <button onclick="runMultipleSteps()">▶▶ Run 10 Steps</button>
+                    <button onclick="resetSimulation()" class="secondary">↻ Reset</button>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="fill" id="progressFill" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Metrics -->
+            <div class="card">
+                <h3>Training Metrics</h3>
+                <div class="grid-3">
+                    <div class="metric">
+                        <div class="metric-value neutral" id="metricLoss">0.00</div>
+                        <div class="metric-label">Loss</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value positive" id="metricReward">0.00</div>
+                        <div class="metric-label">Mean Reward</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value neutral" id="metricKL">0.00</div>
+                        <div class="metric-label">KL Divergence</div>
+                    </div>
+                </div>
+                <div class="grid-3" style="margin-top: 0.5rem;">
+                    <div class="metric">
+                        <div class="metric-value neutral" id="metricClip">0%</div>
+                        <div class="metric-label">Clip Fraction</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value positive" id="metricAdvantage">0.00</div>
+                        <div class="metric-label">Mean Advantage</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value neutral" id="metricSteps">0</div>
+                        <div class="metric-label">Steps</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================
+             SECTION 3: RESPONSE GROUP VISUALIZATION
+             ============================================================ -->
+        <h2>📊 Response Group Analysis</h2>
+
+        <div class="card">
+            <h3>Generated Responses & Rewards</h3>
+            <p style="color: var(--text-dim); font-size: 0.9rem; margin-bottom: 1rem;">
+                Each prompt generates N responses. Responses are scored and ranked.
+                The policy learns to prefer high-scoring responses.
+            </p>
+            <div id="responseCards"></div>
+        </div>
+
+        <!-- ============================================================
+             SECTION 4: ADVANTAGE VISUALIZATION
+             ============================================================ -->
+        <h2>📈 Advantage Estimation</h2>
+
+        <div class="card">
+            <h3>Group-Normalized Advantages</h3>
+            <p style="color: var(--text-dim); font-size: 0.9rem; margin-bottom: 1rem;">
+                Advantages show how much better/worse each response is compared to
+                the group average. Positive = above average, Negative = below average.
+            </p>
+            <div id="advantageBars"></div>
+        </div>
+
+        <!-- ============================================================
+             SECTION 5: TRAINING CURVES
+             ============================================================ -->
+        <h2>📉 Training Curves</h2>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3>Reward Progression</h3>
+                <div class="viz-container">
+                    <canvas id="rewardChart" height="200"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Loss Progression</h3>
+                <div class="viz-container">
+                    <canvas id="lossChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3>KL Divergence</h3>
+                <div class="viz-container">
+                    <canvas id="klChart" height="200"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Clip Fraction</h3>
+                <div class="viz-container">
+                    <canvas id="clipChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================
+             SECTION 6: COMPARISON WITH DPO
+             ============================================================ -->
+        <h2>⚖️ GRPO vs DPO vs RLHF</h2>
+
+        <div class="card">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('grpo')">GRPO</div>
+                <div class="tab" onclick="switchTab('dpo')">DPO</div>
+                <div class="tab" onclick="switchTab('rlhf')">RLHF</div>
+            </div>
+
+            <div id="tab-grpo" class="tab-content active">
+                <h3>Group Relative Policy Optimization</h3>
+                <ul style="margin: 0.5rem 0 0.5rem 1.5rem;">
+                    <li><strong>Input:</strong> Prompts only (no preference pairs needed)</li>
+                    <li><strong>Process:</strong> Generate N responses, rank them, optimize</li>
+                    <li><strong>Rewards:</strong> Automatic (e.g., math correctness)</li>
+                    <li><strong>Memory:</strong> ~1x model size (no value function)</li>
+                    <li><strong>Used by:</strong> DeepSeek-R1, DeepSeek-Math</li>
+                </ul>
+            </div>
+
+            <div id="tab-dpo" class="tab-content">
+                <h3>Direct Preference Optimization</h3>
+                <ul style="margin: 0.5rem 0 0.5rem 1.5rem;">
+                    <li><strong>Input:</strong> Preference pairs (chosen vs rejected)</li>
+                    <li><strong>Process:</strong> Maximize margin between chosen and rejected</li>
+                    <li><strong>Rewards:</strong> Human preferences (expensive, noisy)</li>
+                    <li><strong>Memory:</strong> ~1x model size (no value function)</li>
+                    <li><strong>Used by:</strong> Zephyr, many open-source models</li>
+                </ul>
+            </div>
+
+            <div id="tab-rlhf" class="tab-content">
+                <h3>RL from Human Feedback (PPO)</h3>
+                <ul style="margin: 0.5rem 0 0.5rem 1.5rem;">
+                    <li><strong>Input:</strong> Human preferences → reward model</li>
+                    <li><strong>Process:</strong> PPO with learned reward model</li>
+                    <li><strong>Rewards:</strong> Learned reward model (can hack)</li>
+                    <li><strong>Memory:</strong> ~3x model size (policy + ref + reward + value)</li>
+                    <li><strong>Used by:</strong> ChatGPT, Claude, original InstructGPT</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ============================================================
+             SECTION 7: KEY INSIGHTS
+             ============================================================ -->
+        <h2>💡 Key Insights</h2>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3>🎯 The "Aha Moment"</h3>
+                <p>
+                    During GRPO training, reasoning models develop behaviors
+                    they were never explicitly taught:
+                </p>
+                <ul style="margin: 0.5rem 0 0 1.5rem;">
+                    <li>Self-correction ("Wait, let me re-check...")</li>
+                    <li>Verification ("Let me verify this by...")</li>
+                    <li>Multi-approach exploration</li>
+                    <li>Breaking down complex problems</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3>⚖️ Why Group Comparison?</h3>
+                <p>
+                    Comparing N responses within a group provides:
+                </p>
+                <ul style="margin: 0.5rem 0 0 1.5rem;">
+                    <li>Natural baseline (group mean)</li>
+                    <li>No value function needed (saves 50% memory)</li>
+                    <li>Robust to reward scale</li>
+                    <li>Works with automatic rewards</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; margin: 3rem 0 1rem; color: var(--text-dim); font-size: 0.85rem;">
+            <p>SOTA AI — State-of-the-Art AI from Scratch</p>
+            <p>Part of the interactive learning platform</p>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         JAVASCRIPT — Interactive Simulation Engine
+         ============================================================ -->
+    <script>
+        // ============================================================
+        // STATE
+        // ============================================================
+        let state = {
+            step: 0,
+            rewards: [],
+            lossHistory: [],
+            rewardHistory: [],
+            klHistory: [],
+            clipHistory: [],
+        };
+
+        // ============================================================
+        // UTILITY FUNCTIONS
+        // ============================================================
+
+        function randn() {
+            // Box-Muller transform for normal distribution
+            let u1 = Math.random();
+            let u2 = Math.random();
+            return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+        }
+
+        function sigmoid(x) {
+            return 1 / (1 + Math.exp(-Math.max(-20, Math.min(20, x))));
+        }
+
+        function mean(arr) {
+            return arr.reduce((a, b) => a + b, 0) / arr.length;
+        }
+
+        function std(arr) {
+            const m = mean(arr);
+            return Math.sqrt(arr.reduce((s, x) => s + (x - m) ** 2, 0) / arr.length);
+        }
+
+        // ============================================================
+        // SIMULATION
+        // ============================================================
+
+        function getParams() {
+            return {
+                nSamples: parseInt(document.getElementById('nSamples').value),
+                clipEps: parseFloat(document.getElementById('clipEps').value),
+                klBeta: parseFloat(document.getElementById('klBeta').value),
+                rewardNoise: parseFloat(document.getElementById('rewardNoise').value),
+            };
+        }
+
+        function generateRewards(params) {
+            // Generate rewards with some structure:
+            // - Base quality varies per response
+            // - Add noise
+            // - Some responses are clearly better
+            const rewards = [];
+            const baseQuality = 0.3 + Math.random() * 0.4; // Group quality varies
+
+            for (let i = 0; i < params.nSamples; i++) {
+                const quality = baseQuality + randn() * 0.2;
+                const noise = randn() * params.rewardNoise;
+                rewards.push(Math.max(0, Math.min(1, quality + noise)));
+            }
+            return rewards;
+        }
+
+        function computeAdvantages(rewards) {
+            const m = mean(rewards);
+            const s = std(rewards) || 1;
+            return rewards.map(r => (r - m) / s);
+        }
+
+        function computeLoss(advantages, params) {
+            // Simulate ratio and clipped surrogate loss
+            const ratios = advantages.map(() => 1 + randn() * 0.3);
+            const clipped = ratios.map(r =>
+                Math.max(params.clipEps, Math.min(1 + params.clipEps, r))
+            );
+
+            let surrogate = 0;
+            let clipCount = 0;
+            for (let i = 0; i < ratios.length; i++) {
+                const s1 = ratios[i] * advantages[i];
+                const s2 = clipped[i] * advantages[i];
+                surrogate += -Math.min(s1, s2);
+                if (Math.abs(ratios[i] - 1) > params.clipEps) clipCount++;
+            }
+            surrogate /= ratios.length;
+
+            const kl = Math.abs(randn() * 0.5 + 0.3);
+            const total = surrogate + params.klBeta * kl;
+
+            return {
+                total,
+                surrogate,
+                kl,
+                clipFraction: clipCount / ratios.length,
+                meanRatio: mean(ratios),
+            };
+        }
+
+        function runSimulation() {
+            const params = getParams();
+            const rewards = generateRewards(params);
+            const advantages = computeAdvantages(rewards);
+            const lossInfo = computeLoss(advantages, params);
+
+            state.step++;
+            state.rewards = rewards;
+            state.lossHistory.push(lossInfo.total);
+            state.rewardHistory.push(mean(rewards));
+            state.klHistory.push(lossInfo.kl);
+            state.clipHistory.push(lossInfo.clipFraction);
+
+            // Update UI
+            updateMetrics(lossInfo, rewards, advantages);
+            updateResponseCards(rewards);
+            updateAdvantageBars(advantages);
+            updateCharts();
+            updateFlowDiagram();
+
+            // Progress
+            document.getElementById('progressFill').style.width =
+                Math.min(100, state.step * 2) + '%';
+        }
+
+        function runMultipleSteps() {
+            let count = 0;
+            const interval = setInterval(() => {
+                runSimulation();
+                count++;
+                if (count >= 10) clearInterval(interval);
+            }, 200);
+        }
+
+        function resetSimulation() {
+            state = { step: 0, rewards: [], lossHistory: [], rewardHistory: [], klHistory: [], clipHistory: [] };
+            document.getElementById('progressFill').style.width = '0%';
+            updateCharts();
+            document.getElementById('responseCards').innerHTML = '';
+            document.getElementById('advantageBars').innerHTML = '';
+            updateMetrics({ total: 0, surrogate: 0, kl: 0, clipFraction: 0, meanRatio: 1 }, [], []);
+        }
+
+        // ============================================================
+        // UI UPDATES
+        // ============================================================
+
+        function updateMetrics(lossInfo, rewards, advantages) {
+            const setVal = (id, val, fmt) => {
+                const el = document.getElementById(id);
+                el.textContent = fmt(val);
+                el.className = 'metric-value ' + (val > 0 ? 'positive' : val < 0 ? 'negative' : 'neutral');
+            };
+
+            setVal('metricLoss', lossInfo.total, v => v.toFixed(3));
+            setVal('metricReward', mean(rewards), v => v.toFixed(3));
+            setVal('metricKL', lossInfo.kl, v => v.toFixed(3));
+            setVal('metricClip', lossInfo.clipFraction * 100, v => v.toFixed(0) + '%');
+            setVal('metricAdvantage', mean(advantages), v => v.toFixed(3));
+            document.getElementById('metricSteps').textContent = state.step;
+        }
+
+        function updateResponseCards(rewards) {
+            const container = document.getElementById('responseCards');
+            const maxR = Math.max(...rewards);
+            const minR = Math.min(...rewards);
+
+            container.innerHTML = rewards.map((r, i) => {
+                const isCorrect = r > mean(rewards);
+                const pct = ((r - minR) / (maxR - minR + 0.01) * 100).toFixed(0);
+                return `
+                    <div class="response-card ${isCorrect ? 'correct' : 'incorrect'} animate-in"
+                         style="animation-delay: ${i * 50}ms">
+                        <span class="response-score ${r > mean(rewards) ? 'high' : 'low'}">
+                            ${r.toFixed(3)}
+                        </span>
+                        <strong>Response ${i + 1}:</strong>
+                        ${generateMockResponse(i, isCorrect)}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function generateMockResponse(index, isCorrect) {
+            const correct = [
+                "Let me solve this step by step. First, I'll identify the key components... Therefore, the answer is 42.",
+                "I need to think about this carefully. Breaking it down: step 1, step 2, step 3. The answer is 42.",
+                "Let me verify: 42 checks out. I can confirm by substituting back. The answer is 42.",
+            ];
+            const incorrect = [
+                "The answer is 47. (No verification performed.)",
+                "I think it's approximately 40. Close enough.",
+                "Hmm, let me guess... maybe 35?",
+            ];
+            const pool = isCorrect ? correct : incorrect;
+            return pool[index % pool.length];
+        }
+
+        function updateAdvantageBars(advantages) {
+            const container = document.getElementById('advantageBars');
+            const maxA = Math.max(...advantages.map(Math.abs), 0.1);
+
+            container.innerHTML = advantages.map((a, i) => {
+                const width = Math.abs(a) / maxA * 50;
+                const isPos = a >= 0;
+                return `
+                    <div class="advantage-bar">
+                        <span class="label">Response ${i + 1}</span>
+                        <div class="bar-container">
+                            <div class="center-line"></div>
+                            <div class="bar ${isPos ? 'positive' : 'negative'}"
+                                 style="width: ${width}%; ${isPos ? 'left: 50%' : 'right: 50%'}">
+                            </div>
+                        </div>
+                        <span class="value" style="color: ${isPos ? 'var(--success)' : 'var(--error)'}">
+                            ${a > 0 ? '+' : ''}${a.toFixed(2)}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ============================================================
+        // CHARTS
+        // ============================================================
+
+        function updateCharts() {
+            drawChart('rewardChart', state.rewardHistory, 'var(--success)', 'Reward');
+            drawChart('lossChart', state.lossHistory, 'var(--error)', 'Loss');
+            drawChart('klChart', state.klHistory, 'var(--warning)', 'KL');
+            drawChart('clipChart', state.clipHistory.map(c => c * 100), 'var(--accent2)', 'Clip %');
+        }
+
+        function drawChart(canvasId, data, color, label) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width = canvas.offsetWidth * 2;
+            const h = canvas.height = 400;
+            ctx.clearRect(0, 0, w, h);
+
+            if (data.length < 2) {
+                ctx.fillStyle = '#888';
+                ctx.font = '24px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Run a simulation to see data', w / 2, h / 2);
+                return;
+            }
+
+            const padding = 40;
+            const plotW = w - padding * 2;
+            const plotH = h - padding * 2;
+
+            const minVal = Math.min(...data);
+            const maxVal = Math.max(...data);
+            const range = maxVal - minVal || 1;
+
+            // Grid lines
+            ctx.strokeStyle = '#2a2a3e';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding + (plotH / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(w - padding, y);
+                ctx.stroke();
+
+                ctx.fillStyle = '#888';
+                ctx.font = '18px monospace';
+                ctx.textAlign = 'right';
+                const val = maxVal - (range / 4) * i;
+                ctx.fillText(val.toFixed(2), padding - 5, y + 5);
+            }
+
+            // Data line
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            for (let i = 0; i < data.length; i++) {
+                const x = padding + (i / (data.length - 1)) * plotW;
+                const y = padding + ((maxVal - data[i]) / range) * plotH;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Data points
+            ctx.fillStyle = color;
+            for (let i = 0; i < data.length; i++) {
+                const x = padding + (i / (data.length - 1)) * plotW;
+                const y = padding + ((maxVal - data[i]) / range) * plotH;
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Label
+            ctx.fillStyle = color;
+            ctx.font = '20px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(label, padding, padding - 10);
+        }
+
+        // ============================================================
+        // FLOW DIAGRAM
+        // ============================================================
+
+        function updateFlowDiagram() {
+            const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
+            const activeIdx = state.step % steps.length;
+
+            steps.forEach((id, i) => {
+                const el = document.getElementById(id);
+                el.classList.toggle('active', i <= activeIdx);
+            });
+        }
+
+        // ============================================================
+        // TABS
+        // ============================================================
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        // ============================================================
+        // SLIDER UPDATES
+        // ============================================================
+
+        ['nSamples', 'clipEps', 'klBeta', 'rewardNoise'].forEach(id => {
+            const slider = document.getElementById(id);
+            const display = document.getElementById(id + 'Val');
+            slider.addEventListener('input', () => {
+                const val = parseFloat(slider.value);
+                display.textContent = id === 'nSamples' ? val : val.toFixed(2);
+            });
+        });
+
+        // ============================================================
+        // INIT
+        // ============================================================
+
+        window.addEventListener('resize', updateCharts);
+        updateCharts();
+    </script>
+</body>
+</html>

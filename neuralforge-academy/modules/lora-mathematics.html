@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoRA Mathematics — NeuralForge Academy</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; overflow-x: hidden; }
+
+/* Navigation */
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(10,10,26,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid #2a2a4a; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+.nav .back { color: #7c4dff; text-decoration: none; font-size: 14px; }
+.nav .back:hover { text-decoration: underline; }
+.nav .title { font-size: 16px; font-weight: 600; }
+.nav .progress { font-size: 12px; color: #888; }
+
+.main { margin-top: 60px; }
+
+/* Hero */
+.hero { height: 50vh; position: relative; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+.hero canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.hero-content { position: relative; z-index: 2; }
+.hero-content h1 { font-size: 42px; background: linear-gradient(90deg, #f9ca24, #f0932b, #eb4d4b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 12px; }
+.hero-content p { font-size: 18px; color: #aaa; max-width: 600px; margin: 0 auto; }
+
+/* Section */
+.section { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+.section h2 { font-size: 28px; margin-bottom: 24px; color: #f9ca24; }
+.section h3 { font-size: 20px; margin: 24px 0 12px; color: #f0932b; }
+
+/* Demo container */
+.demo-container { background: #111128; border: 1px solid #2a2a4a; border-radius: 16px; padding: 24px; margin-bottom: 32px; position: relative; overflow: hidden; }
+.demo-container h3 { margin-top: 0; }
+.demo-canvas { width: 100%; height: 400px; border-radius: 8px; background: #08081a; }
+
+/* Controls */
+.controls { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; align-items: center; }
+.controls label { font-size: 13px; color: #888; }
+.controls input[type="range"] { accent-color: #f9ca24; width: 120px; }
+.controls select, .controls button { background: #1a1a3a; color: #e0e0e0; border: 1px solid #2a2a4a; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.controls button:hover { border-color: #f9ca24; }
+.controls button.active { background: #f9ca24; border-color: #f9ca24; color: #0a0a1a; font-weight: 600; }
+
+/* Concept cards */
+.concept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin: 24px 0; }
+.concept-card { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; transition: all 0.3s; }
+.concept-card:hover { border-color: #f9ca24; transform: translateY(-2px); }
+.concept-card h4 { color: #f9ca24; margin-bottom: 8px; font-size: 16px; }
+.concept-card p { font-size: 13px; color: #aaa; line-height: 1.6; }
+.concept-card .formula { background: #0a0a1a; border-radius: 6px; padding: 12px; margin: 12px 0; font-family: 'Fira Code', monospace; font-size: 13px; color: #26de81; text-align: center; }
+
+/* Level tabs */
+.level-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.level-tab { padding: 8px 16px; border-radius: 6px; border: 1px solid #2a2a4a; background: transparent; color: #888; cursor: pointer; font-size: 13px; }
+.level-tab.active { background: #f9ca24; border-color: #f9ca24; color: #0a0a1a; }
+
+/* Matrix visualization */
+.matrix-display { display: inline-block; margin: 8px; vertical-align: middle; }
+.matrix-bracket { font-size: 48px; color: #f9ca24; font-weight: 100; line-height: 1; }
+.matrix-grid { display: inline-grid; gap: 2px; vertical-align: middle; }
+.matrix-cell { width: 32px; height: 32px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; transition: all 0.3s; }
+.matrix-cell.zero { background: #1a1a3a; color: #555; }
+.matrix-cell.nonzero { background: #f9ca2440; color: #f9ca24; }
+.matrix-cell.highlight-a { background: #7c4dff40; color: #7c4dff; }
+.matrix-cell.highlight-b { background: #26de8140; color: #26de81; }
+
+/* Stats bar */
+.stats-bar { display: flex; gap: 24px; margin: 16px 0; flex-wrap: wrap; }
+.stat { background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 8px; padding: 12px 16px; min-width: 140px; }
+.stat .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.stat .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+.stat .value.cyan { color: #06b6d4; }
+.stat .value.emerald { color: #26de81; }
+.stat .value.amber { color: #f9ca24; }
+.stat .value.rose { color: #eb4d4b; }
+
+/* Code playground */
+.playground { background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 8px; overflow: hidden; margin: 16px 0; }
+.playground-header { background: #1a1a3a; padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; }
+.playground-header .dots { display: flex; gap: 6px; }
+.playground-header .dot { width: 10px; height: 10px; border-radius: 50%; }
+.playground-header .dot.r { background: #ff5f57; }
+.playground-header .dot.y { background: #ffbd2e; }
+.playground-header .dot.g { background: #28c840; }
+.playground-code { padding: 16px; font-family: 'Fira Code', monospace; font-size: 13px; line-height: 1.7; overflow-x: auto; color: #ccc; }
+.playground-code .kw { color: #c678dd; }
+.playground-code .fn { color: #61afef; }
+.playground-code .str { color: #98c379; }
+.playground-code .num { color: #d19a66; }
+.playground-code .cmt { color: #5c6370; font-style: italic; }
+.playground-output { background: #111128; padding: 16px; border-top: 1px solid #2a2a4a; font-family: monospace; font-size: 12px; color: #26de81; min-height: 60px; white-space: pre-wrap; }
+
+/* Quiz */
+.quiz { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; margin: 24px 0; }
+.quiz h3 { color: #f9ca24; margin-bottom: 16px; }
+.quiz-question { margin-bottom: 16px; }
+.quiz-question p { margin-bottom: 12px; font-size: 15px; }
+.quiz-option { padding: 12px 16px; background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; font-size: 14px; }
+.quiz-option:hover { border-color: #f9ca24; }
+.quiz-option.correct { border-color: #26de81; background: #26de8115; }
+.quiz-option.wrong { border-color: #ff6b6b; background: #ff6b6b15; }
+.quiz-feedback { font-size: 13px; margin-top: 8px; padding: 10px; border-radius: 6px; display: none; }
+.quiz-feedback.show { display: block; }
+
+/* Comparison table */
+.comparison-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+.comparison-table th { background: #1a1a3a; padding: 12px; text-align: left; color: #f9ca24; font-weight: 600; border-bottom: 2px solid #2a2a4a; }
+.comparison-table td { padding: 10px 12px; border-bottom: 1px solid #1a1a3a; }
+.comparison-table tr:hover { background: #111128; }
+
+/* Rank slider visualization */
+.rank-viz { display: flex; align-items: end; gap: 4px; height: 200px; margin: 16px 0; padding: 16px; background: #0a0a1a; border-radius: 8px; }
+.rank-bar { flex: 1; border-radius: 4px 4px 0 0; transition: all 0.3s; position: relative; min-width: 20px; }
+.rank-bar .bar-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #888; }
+.rank-bar .bar-value { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #f9ca24; font-weight: 600; }
+
+/* Animations */
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@keyframes flowLine { 0% { stroke-dashoffset: 200; } 100% { stroke-dashoffset: 0; } }
+.pulse { animation: pulse 2s infinite; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .hero-content h1 { font-size: 28px; }
+    .concept-grid { grid-template-columns: 1fr; }
+    .stats-bar { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+    <a href="../index.html" class="back">← Back to Academy</a>
+    <span class="title">Module 3.4: LoRA Mathematics</span>
+    <span class="progress">Track 3 · PEFT & Adaptation</span>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+    <canvas id="heroCanvas"></canvas>
+    <div class="hero-content">
+        <h1>LoRA Mathematics</h1>
+        <p>Low-Rank Adaptation — fine-tune billion-parameter models with &lt;1% of the parameters</p>
+    </div>
+</div>
+
+<div class="main">
+    <!-- Level selection -->
+    <div class="section">
+        <div class="level-tabs">
+            <button class="level-tab active" onclick="setLevel('beginner')">Beginner</button>
+            <button class="level-tab" onclick="setLevel('intermediate')">Intermediate</button>
+            <button class="level-tab" onclick="setLevel('advanced')">Advanced</button>
+            <button class="level-tab" onclick="setLevel('expert')">Expert</button>
+        </div>
+
+        <!-- Beginner -->
+        <div id="level-beginner">
+            <h2>What is LoRA?</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>The Shortcut Analogy</h4>
+                    <p>Imagine a highway (original model). Instead of rebuilding the entire highway, LoRA adds small side roads (low-rank matrices) that let traffic take new routes. The original highway stays frozen.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Why Not Full Fine-Tuning?</h4>
+                    <p>A 7B model has 7 billion parameters. Full fine-tuning needs gradients for all 7B params — that's 28GB+ just for optimizer states. LoRA trains only ~0.1% of parameters, using ~100x less memory.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>The Core Idea</h4>
+                    <p>Instead of updating the full weight matrix W, LoRA decomposes the update into two small matrices: ΔW = A × B, where A is (d × r) and B is (r × d), with r ≪ d.</p>
+                    <div class="formula">W' = W + ΔW = W + A · B</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Intermediate -->
+        <div id="level-intermediate" style="display:none;">
+            <h2>How LoRA Works</h2>
+            <div class="concept-card" style="max-width: 800px;">
+                <h4>Low-Rank Decomposition</h4>
+                <p>Given a pre-trained weight matrix W₀ ∈ ℝ<sup>d×k</sup>, LoRA constrains the update:</p>
+                <div class="formula">W = W₀ + ΔW = W₀ + B · A</div>
+                <p>Where B ∈ ℝ<sup>d×r</sup> and A ∈ ℝ<sup>r×k</sup>, with rank r ≪ min(d, k).</p>
+                <p><strong>Initialization:</strong> A ~ 𝒩(0, σ²), B = 0 (so ΔW = 0 at start)</p>
+                <p><strong>Scaling:</strong> ΔW scaled by α/r to stabilize training</p>
+                <div class="formula">h = W₀x + (α/r) · B · A · x</div>
+            </div>
+        </div>
+
+        <!-- Advanced -->
+        <div id="level-advanced" style="display:none;">
+            <h2>Mathematical Properties</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>Rank and Expressiveness</h4>
+                    <p>Rank r controls the expressiveness of the update. A rank-r matrix can represent at most r linearly independent directions of change.</p>
+                    <p>For a d×d matrix: full rank = d² params, rank-r = 2dr params.</p>
+                    <div class="formula">Compression ratio = d² / (2dr) = d / (2r)</div>
+                    <p>For d=4096, r=8: compression = 256× — from 16M to 65K params.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Spectral Analysis</h4>
+                    <p>The singular values of ΔW decay rapidly for tasks that modify only a few "directions" in weight space. LoRA exploits this — the top-r singular vectors capture most of the adaptation signal.</p>
+                    <div class="formula">ΔW = U · Σ · Vᵀ ≈ U<sub>:,:r</sub> · Σ<sub>:r,:r</sub> · V<sub>:,:r</sub>ᵀ</div>
+                </div>
+                <div class="concept-card">
+                    <h4>Merge and Inference</h4>
+                    <p>At inference time, LoRA adds zero latency by merging: W' = W₀ + (α/r)·B·A. This is a single matrix — no extra computation.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expert -->
+        <div id="level-expert" style="display:none;">
+            <h2>Research Frontiers</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>DoRA: Weight-Decomposed LoRA</h4>
+                    <p>Decomposes weight into magnitude and direction: W' = m · (W₀ + BA)/||W₀ + BA||. Adapts direction via LoRA, magnitude separately. Better on commonsense reasoning.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>GaLore: Gradient Low-Rank Projection</h4>
+                    <p>Projects gradients into low-rank subspace instead of weights. Updates full weights but in a compressed gradient space. Memory savings without architecture changes.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>LoRA+ : Learning Rate Disparity</h4>
+                    <p>Uses different learning rates for A and B: η<sub>B</sub> = λ · η<sub>A</sub> where λ > 1. Motivated by the asymmetry in how A and B gradients behave during training.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>rsLoRA: Rank-Stabilized Scaling</h4>
+                    <p>Replaces α/r with α/√r scaling. This maintains gradient magnitude across different ranks, allowing higher ranks without instability.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive: Low-Rank Decomposition Visualization -->
+    <div class="section">
+        <h2>Interactive: Matrix Decomposition</h2>
+        <div class="demo-container">
+            <h3>See How W = W₀ + B·A Works</h3>
+            <canvas id="decompCanvas" class="demo-canvas" width="1100" height="400"></canvas>
+            <div class="controls">
+                <label>Rank r: <input type="range" id="rankSlider" min="1" max="8" value="2" oninput="updateDecomposition()"><span id="rankValue">2</span></label>
+                <label>Matrix dim d: <input type="range" id="dimSlider" min="4" max="12" value="8" oninput="updateDecomposition()"><span id="dimValue">8</span></label>
+                <button onclick="animateDecomposition()" id="animBtn">▶ Animate</button>
+                <button onclick="randomizeWeights()">🎲 Randomize</button>
+            </div>
+            <div class="stats-bar">
+                <div class="stat"><div class="label">Original Params</div><div class="value cyan" id="origParams">64</div></div>
+                <div class="stat"><div class="label">LoRA Params</div><div class="value emerald" id="loraParams">16</div></div>
+                <div class="stat"><div class="label">Compression</div><div class="value amber" id="compression">4.0×</div></div>
+                <div class="stat"><div class="label">Memory Saved</div><div class="value rose" id="memorySaved">75%</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive: Rank Selection Explorer -->
+    <div class="section">
+        <h2>Interactive: Rank Selection Tradeoffs</h2>
+        <div class="demo-container">
+            <h3>How Rank Affects Performance</h3>
+            <canvas id="rankCanvas" class="demo-canvas" width="1100" height="350"></canvas>
+            <div class="controls">
+                <label>Task complexity: <input type="range" id="taskComplexity" min="1" max="10" value="5" oninput="updateRankViz()"><span id="complexityValue">5</span></label>
+                <label>Dataset size: <select id="datasetSize" onchange="updateRankViz()">
+                    <option value="small">Small (&lt;1K)</option>
+                    <option value="medium" selected>Medium (1K-100K)</option>
+                    <option value="large">Large (&gt;100K)</option>
+                </select></label>
+            </div>
+            <div class="stats-bar">
+                <div class="stat"><div class="label">Recommended Rank</div><div class="value amber" id="recRank">8</div></div>
+                <div class="stat"><div class="label">Expected Quality</div><div class="value emerald" id="expectedQuality">92%</div></div>
+                <div class="stat"><div class="label">Training Speed</div><div class="value cyan" id="trainSpeed">3.2×</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive: Layer-wise LoRA Application -->
+    <div class="section">
+        <h2>Interactive: Where to Apply LoRA</h2>
+        <div class="demo-container">
+            <h3>Transformer Layer Anatomy</h3>
+            <canvas id="layerCanvas" class="demo-canvas" width="1100" height="350"></canvas>
+            <div class="controls">
+                <button class="active" onclick="setLayerTarget('all', this)">All Layers</button>
+                <button onclick="setLayerTarget('qkv', this)">Q, K, V Only</button>
+                <button onclick="setLayerTarget('ffn', this)">FFN Only</button>
+                <button onclick="setLayerTarget('attention', this)">Attention Output</button>
+            </div>
+            <div class="stats-bar">
+                <div class="stat"><div class="label">Trainable Params</div><div class="value amber" id="layerParams">2.1M</div></div>
+                <div class="stat"><div class="label">% of Total</div><div class="value emerald" id="layerPercent">0.03%</div></div>
+                <div class="stat"><div class="label">Memory Overhead</div><div class="value cyan" id="layerMemory">8.4 MB</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Code Playground -->
+    <div class="section">
+        <h2>Code Playground</h2>
+        <div class="demo-container">
+            <h3>Implement LoRA from Scratch</h3>
+            <div class="playground">
+                <div class="playground-header">
+                    <div class="dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
+                    <button onclick="runPlayground()" style="background:#26de81;color:#0a0a1a;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-weight:600;">▶ Run</button>
+                </div>
+                <pre class="playground-code"><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">class</span> <span class="fn">LoRALayer</span>:
+    <span class="str">"""Low-Rank Adaptation layer."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_in, d_out, rank=<span class="num">4</span>, alpha=<span class="num">1.0</span>):
+        <span class="cmt"># Frozen pre-trained weights</span>
+        self.W0 = np.random.randn(d_out, d_in) * <span class="num">0.02</span>
+
+        <span class="cmt"># LoRA matrices</span>
+        self.A = np.random.randn(rank, d_in) * <span class="num">0.01</span>
+        self.B = np.zeros((d_out, rank))  <span class="cmt"># Zero init!</span>
+
+        self.scaling = alpha / rank
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        <span class="cmt"># h = W₀·x + (α/r)·B·A·x</span>
+        h_base = self.W0 @ x
+        h_lora = self.scaling * (self.B @ (self.A @ x))
+        <span class="kw">return</span> h_base + h_lora
+
+    <span class="kw">def</span> <span class="fn">merge</span>(self):
+        <span class="cmt"># Merge for zero-latency inference</span>
+        <span class="kw">return</span> self.W0 + self.scaling * (self.B @ self.A)
+
+<span class="cmt"># Example: 4096→4096 layer, rank=8</span>
+layer = LoRALayer(<span class="num">4096</span>, <span class="num">4096</span>, rank=<span class="num">8</span>, alpha=<span class="num">16</span>)
+x = np.random.randn(<span class="num">4096</span>)
+out = layer.forward(x)
+merged = layer.merge()
+
+<span class="kw">print</span>(<span class="str">f"Original params: {layer.W0.size:,}"</span>)
+<span class="kw">print</span>(<span class="str">f"LoRA params: {layer.A.size + layer.B.size:,}"</span>)
+<span class="kw">print</span>(<span class="str">f"Compression: {layer.W0.size / (layer.A.size + layer.B.size):.1f}×</span>)</pre>
+                <div class="playground-output" id="playgroundOutput">Click "Run" to execute the code...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Table -->
+    <div class="section">
+        <h2>PEFT Method Comparison</h2>
+        <div class="demo-container">
+            <table class="comparison-table">
+                <thead>
+                    <tr><th>Method</th><th>Trainable Params</th><th>Memory</th><th>Quality</th><th>Inference Cost</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Full Fine-Tuning</strong></td><td>100%</td><td>Very High</td><td>★★★★★</td><td>None</td></tr>
+                    <tr><td><strong>LoRA (r=8)</strong></td><td>0.05%</td><td>Very Low</td><td>★★★★☆</td><td>None (merged)</td></tr>
+                    <tr><td><strong>LoRA (r=64)</strong></td><td>0.4%</td><td>Low</td><td>★★★★★</td><td>None (merged)</td></tr>
+                    <tr><td><strong>QLoRA (4-bit)</strong></td><td>0.05%</td><td>Ultra Low</td><td>★★★★☆</td><td>None (merged)</td></tr>
+                    <tr><td><strong>Prefix Tuning</strong></td><td>0.1%</td><td>Low</td><td>★★★☆☆</td><td>Slight increase</td></tr>
+                    <tr><td><strong>Adapter (bottleneck)</strong></td><td>1-5%</td><td>Medium</td><td>★★★★☆</td><td>Added latency</td></tr>
+                    <tr><td><strong>DoRA</strong></td><td>0.06%</td><td>Very Low</td><td>★★★★★</td><td>None (merged)</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Quiz -->
+    <div class="section">
+        <h2>Test Your Knowledge</h2>
+        <div class="quiz" id="quiz">
+            <h3>🧠 LoRA Quiz</h3>
+
+            <div class="quiz-question" data-correct="2">
+                <p>1. Why does LoRA use low-rank decomposition?</p>
+                <div class="quiz-option" onclick="checkAnswer(this, 0)">A) To make the model run faster at inference</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 1)">B) Because weight updates during fine-tuning are inherently low-rank</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 2)">C) To reduce the number of trainable parameters while preserving adaptation capacity</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 3)">D) Because GPUs can only multiply small matrices</div>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question" data-correct="1">
+                <p>2. How is LoRA's B matrix initialized?</p>
+                <div class="quiz-option" onclick="checkAnswer(this, 0)">A) Random normal distribution</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 1)">B) Zeros (so ΔW = 0 at the start)</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 2)">C) Copy of the original weights</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 3)">D) Identity matrix</div>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question" data-correct="3">
+                <p>3. For a 4096×4096 weight matrix with LoRA rank r=8, how many parameters does LoRA add?</p>
+                <div class="quiz-option" onclick="checkAnswer(this, 0)">A) 8</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 1)">B) 32,768</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 2)">C) 65,536</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 3)">D) 16,777,216</div>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question" data-correct="0">
+                <p>4. What does the α (alpha) parameter control in LoRA?</p>
+                <div class="quiz-option" onclick="checkAnswer(this, 0)">A) The scaling factor of the LoRA update (α/r)</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 1)">B) The learning rate</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 2)">C) The rank of the decomposition</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 3)">D) The initialization variance</div>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question" data-correct="2">
+                <p>5. Why can LoRA add zero latency at inference time?</p>
+                <div class="quiz-option" onclick="checkAnswer(this, 0)">A) Because it uses special GPU instructions</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 1)">B) Because the LoRA matrices are cached</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 2)">C) Because W₀ + B·A can be pre-computed into a single merged matrix</div>
+                <div class="quiz-option" onclick="checkAnswer(this, 3)">D) Because LoRA only affects training, not inference</div>
+                <div class="quiz-feedback"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// LEVEL SWITCHING
+// ═══════════════════════════════════════════════════════════
+function setLevel(level) {
+    ['beginner','intermediate','advanced','expert'].forEach(l => {
+        document.getElementById('level-'+l).style.display = l === level ? 'block' : 'none';
+    });
+    document.querySelectorAll('.level-tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════
+// HERO CANVAS — Low-rank flow animation
+// ═══════════════════════════════════════════════════════════
+(function() {
+    const canvas = document.getElementById('heroCanvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, particles = [], t = 0;
+
+    function resize() { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
+    window.addEventListener('resize', resize); resize();
+
+    // Create particles flowing through low-rank bottleneck
+    for (let i = 0; i < 120; i++) {
+        particles.push({
+            x: Math.random() * W, y: Math.random() * H,
+            vx: (Math.random()-0.5)*2, vy: (Math.random()-0.5)*2,
+            size: Math.random()*3+1, color: ['#f9ca24','#f0932b','#eb4d4b','#7c4dff'][Math.floor(Math.random()*4)]
+        });
+    }
+
+    function draw() {
+        ctx.fillStyle = 'rgba(10,10,26,0.15)'; ctx.fillRect(0,0,W,H);
+        t += 0.01;
+
+        // Draw low-rank bottleneck shape
+        const cx = W/2, cy = H/2;
+        ctx.strokeStyle = 'rgba(249,202,36,0.15)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let a = 0; a < Math.PI*2; a += 0.05) {
+            const r = 80 + 40*Math.cos(2*a + t*2);
+            const px = cx + r*Math.cos(a)*2.5;
+            const py = cy + r*Math.sin(a);
+            a === 0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+        }
+        ctx.closePath(); ctx.stroke();
+
+        // Animate particles through bottleneck
+        particles.forEach(p => {
+            const dx = cx - p.x, dy = cy - p.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            // Pull toward center with low-rank compression effect
+            if (dist > 50) {
+                p.vx += dx/dist * 0.15; p.vy += dy/dist * 0.15;
+            } else {
+                // Squeeze through bottleneck
+                p.vx += (Math.random()-0.5)*3; p.vy += (Math.random()-0.5)*3;
+            }
+            p.vx *= 0.98; p.vy *= 0.98;
+            p.x += p.vx; p.y += p.vy;
+
+            // Wrap
+            if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+            if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+
+            ctx.fillStyle = p.color; ctx.globalAlpha = 0.7;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 1;
+        });
+
+        // Labels
+        ctx.fillStyle = 'rgba(249,202,36,0.4)'; ctx.font = '14px Inter';
+        ctx.fillText('W₀ (frozen)', 50, H/2);
+        ctx.fillText('B·A (learned)', W-130, H/2);
+        ctx.fillText('rank r', cx-15, cy+110);
+
+        requestAnimationFrame(draw);
+    }
+    draw();
+})();
+
+// ═══════════════════════════════════════════════════════════
+// DECOMPOSITION VISUALIZATION
+// ═══════════════════════════════════════════════════════════
+let decompData = { W0: [], A: [], B: [], d: 8, r: 2 };
+let animating = false;
+
+function initDecomp() {
+    const d = decompData.d, r = decompData.r;
+    decompData.W0 = Array.from({length:d}, () => Array.from({length:d}, () => (Math.random()-0.5)*2));
+    decompData.A = Array.from({length:r}, () => Array.from({length:d}, () => (Math.random()-0.5)*0.5));
+    decompData.B = Array.from({length:d}, () => Array.from({length:r}, () => (Math.random()-0.5)*0.5));
+}
+
+function updateDecomposition() {
+    decompData.r = parseInt(document.getElementById('rankSlider').value);
+    decompData.d = parseInt(document.getElementById('dimSlider').value);
+    document.getElementById('rankValue').textContent = decompData.r;
+    document.getElementById('dimValue').textContent = decompData.d;
+    initDecomp();
+
+    const d = decompData.d, r = decompData.r;
+    const origP = d * d;
+    const loraP = d * r + r * d;
+    document.getElementById('origParams').textContent = origP.toLocaleString();
+    document.getElementById('loraParams').textContent = loraP.toLocaleString();
+    document.getElementById('compression').textContent = (origP/loraP).toFixed(1) + '×';
+    document.getElementById('memorySaved').textContent = ((1 - loraP/origP)*100).toFixed(0) + '%';
+
+    drawDecomposition();
+}
+
+function drawDecomposition() {
+    const canvas = document.getElementById('decompCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#08081a'; ctx.fillRect(0,0,W,H);
+
+    const { d, r, W0, A, B } = decompData;
+    const cellSize = Math.min(24, 280/d);
+    const matrixW = d * cellSize;
+
+    // Draw W0
+    drawMatrix(ctx, 60, 60, W0, cellSize, d, d, 'W₀ (frozen)', '#7c4dff');
+
+    // Draw plus sign
+    ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 32px Inter';
+    ctx.fillText('+', 60 + matrixW + 30, 60 + matrixW/2 + 10);
+
+    // Draw B
+    const bx = 60 + matrixW + 80;
+    drawMatrix(ctx, bx, 60, B, cellSize, r, d, 'B (d×r)', '#26de81');
+
+    // Draw dot
+    ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 32px Inter';
+    ctx.fillText('·', bx + r*cellSize + 20, 60 + matrixW/2 + 10);
+
+    // Draw A
+    const ax = bx + r*cellSize + 60;
+    drawMatrix(ctx, ax, 60, A, cellSize, d, r, 'A (r×d)', '#06b6d4');
+
+    // Draw equals and result
+    ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 32px Inter';
+    ctx.fillText('=', ax + d*cellSize + 20, 60 + matrixW/2 + 10);
+
+    // Compute merged
+    const merged = [];
+    for (let i = 0; i < d; i++) {
+        merged[i] = [];
+        for (let j = 0; j < d; j++) {
+            let sum = 0;
+            for (let k = 0; k < r; k++) sum += B[i][k] * A[k][j];
+            merged[i][j] = W0[i][j] + sum;
+        }
+    }
+    const mx = ax + d*cellSize + 70;
+    drawMatrix(ctx, mx, 60, merged, cellSize, d, d, "W' (merged)", '#f9ca24');
+}
+
+function drawMatrix(ctx, x, y, data, cellSize, rows, cols, label, color) {
+    // Label
+    ctx.fillStyle = color; ctx.font = 'bold 13px Inter';
+    ctx.fillText(label, x, y - 10);
+
+    // Brackets
+    ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x-4, y-4); ctx.lineTo(x-4, y+rows*cellSize+4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+cols*cellSize+4, y-4); ctx.lineTo(x+cols*cellSize+4, y+rows*cellSize+4); ctx.stroke();
+
+    // Cells
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            const val = data[i][j];
+            const intensity = Math.min(1, Math.abs(val) / 2);
+            const isZero = Math.abs(val) < 0.01;
+            ctx.fillStyle = isZero ? '#1a1a3a' : color + Math.floor(intensity*80+20).toString(16).padStart(2,'0');
+            ctx.fillRect(x + j*cellSize + 1, y + i*cellSize + 1, cellSize-2, cellSize-2);
+
+            if (cellSize > 16 && !isZero) {
+                ctx.fillStyle = '#fff'; ctx.font = `${Math.max(8, cellSize-6)}px monospace`;
+                ctx.fillText(val.toFixed(1), x + j*cellSize + 3, y + (i+0.7)*cellSize);
+            }
+        }
+    }
+}
+
+function animateDecomposition() {
+    if (animating) return;
+    animating = true;
+    document.getElementById('animBtn').textContent = '⏸ Playing...';
+    const { d, r, W0 } = decompData;
+    let step = 0;
+    const totalSteps = 60;
+
+    const interval = setInterval(() => {
+        const progress = step / totalSteps;
+        const canvas = document.getElementById('decompCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#08081a'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+        // Gradually reveal the decomposition
+        if (progress < 0.33) {
+            // Show W0
+            drawMatrix(ctx, 60, 60, W0, Math.min(24, 280/d), d, d, 'W₀ (frozen)', '#7c4dff');
+            ctx.fillStyle = '#888'; ctx.font = '16px Inter';
+            ctx.fillText(`Step 1: Start with frozen weights`, 60, 60 + d*Math.min(24,280/d) + 40);
+        } else if (progress < 0.66) {
+            // Show B and A appearing
+            const cellSize = Math.min(24, 280/d);
+            drawMatrix(ctx, 60, 60, W0, cellSize, d, d, 'W₀ (frozen)', '#7c4dff');
+            ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 32px Inter';
+            ctx.fillText('+', 60 + d*cellSize + 30, 60 + d*cellSize/2 + 10);
+
+            const bx = 60 + d*cellSize + 80;
+            const fadeIn = (progress - 0.33) / 0.33;
+            const showB = decompData.B.map(row => row.map(v => v * fadeIn));
+            const showA = decompData.A.map(row => row.map(v => v * fadeIn));
+            drawMatrix(ctx, bx, 60, showB, cellSize, r, d, 'B (d×r)', '#26de81');
+            ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 32px Inter';
+            ctx.fillText('·', bx + r*cellSize + 20, 60 + d*cellSize/2 + 10);
+            drawMatrix(ctx, bx + r*cellSize + 60, 60, showA, cellSize, d, r, 'A (r×d)', '#06b6d4');
+            ctx.fillStyle = '#888'; ctx.font = '16px Inter';
+            ctx.fillText(`Step 2: Add low-rank matrices B·A (rank ${r})`, 60, 60 + d*cellSize + 40);
+        } else {
+            // Show full result
+            drawDecomposition();
+            ctx.fillStyle = '#888'; ctx.font = '16px Inter';
+            ctx.fillText(`Step 3: Merged = W₀ + B·A (same inference speed!)`, 60, 60 + d*Math.min(24,280/d) + 40);
+        }
+
+        step++;
+        if (step > totalSteps) {
+            clearInterval(interval);
+            animating = false;
+            document.getElementById('animBtn').textContent = '▶ Animate';
+            drawDecomposition();
+        }
+    }, 50);
+}
+
+function randomizeWeights() {
+    initDecomp();
+    drawDecomposition();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RANK SELECTION VISUALIZATION
+// ═══════════════════════════════════════════════════════════
+function updateRankViz() {
+    const complexity = parseInt(document.getElementById('taskComplexity').value);
+    const dataset = document.getElementById('datasetSize').value;
+    document.getElementById('complexityValue').textContent = complexity;
+
+    const canvas = document.getElementById('rankCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#08081a'; ctx.fillRect(0,0,W,H);
+
+    const ranks = [1, 2, 4, 8, 16, 32, 64, 128];
+    const d = 4096;
+
+    // Compute quality for each rank based on complexity and dataset
+    const datasetMult = { small: 0.6, medium: 0.85, large: 1.0 }[dataset];
+    const qualities = ranks.map(r => {
+        const base = 1 - Math.exp(-r * complexity * 0.15);
+        const noise = Math.sin(r * 0.7) * 0.05;
+        return Math.min(1, (base * datasetMult + noise));
+    });
+
+    const barW = 60, gap = 20, startX = 80, barAreaH = H - 100;
+
+    // Axes
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, 50); ctx.lineTo(startX, H-40); ctx.lineTo(startX + ranks.length*(barW+gap), H-40); ctx.stroke();
+
+    // Y-axis label
+    ctx.save(); ctx.translate(20, H/2); ctx.rotate(-Math.PI/2);
+    ctx.fillStyle = '#888'; ctx.font = '12px Inter'; ctx.fillText('Quality Score', 0, 0);
+    ctx.restore();
+
+    // Bars
+    ranks.forEach((r, i) => {
+        const x = startX + i * (barW + gap);
+        const barH = qualities[i] * barAreaH;
+        const y = H - 40 - barH;
+
+        // Gradient bar
+        const grad = ctx.createLinearGradient(x, y, x, H-40);
+        grad.addColorStop(0, '#f9ca24'); grad.addColorStop(1, '#f0932b');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, barW, barH);
+
+        // Value label
+        ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 11px monospace';
+        ctx.fillText((qualities[i]*100).toFixed(0)+'%', x+10, y-8);
+
+        // Rank label
+        ctx.fillStyle = '#888'; ctx.font = '11px monospace';
+        ctx.fillText('r='+r, x+10, H-22);
+
+        // Param count
+        const params = 2 * d * r;
+        ctx.fillStyle = '#555'; ctx.font = '9px monospace';
+        ctx.fillText(formatNum(params), x+2, H-10);
+    });
+
+    // Find recommended rank
+    let recIdx = 0;
+    for (let i = 0; i < qualities.length; i++) {
+        if (qualities[i] >= 0.9) { recIdx = i; break; }
+        recIdx = i;
+    }
+    document.getElementById('recRank').textContent = ranks[recIdx];
+    document.getElementById('expectedQuality').textContent = (qualities[recIdx]*100).toFixed(0) + '%';
+    document.getElementById('trainSpeed').textContent = (d*d / (2*d*ranks[recIdx])).toFixed(1) + '×';
+
+    // Highlight recommended
+    const rx = startX + recIdx * (barW + gap);
+    ctx.strokeStyle = '#26de81'; ctx.lineWidth = 2;
+    ctx.setLineDash([5,3]);
+    ctx.strokeRect(rx-2, H-40-barAreaH*qualities[recIdx]-2, barW+4, barAreaH*qualities[recIdx]+4);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#26de81'; ctx.font = 'bold 10px Inter';
+    ctx.fillText('Recommended', rx-5, H-40-barAreaH*qualities[recIdx]-16);
+}
+
+function formatNum(n) {
+    if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+    if (n >= 1e3) return (n/1e3).toFixed(0)+'K';
+    return n.toString();
+}
+
+// ═══════════════════════════════════════════════════════════
+// LAYER APPLICATION VISUALIZATION
+// ═══════════════════════════════════════════════════════════
+let layerTarget = 'all';
+
+function setLayerTarget(target, btn) {
+    layerTarget = target;
+    document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    drawLayerViz();
+}
+
+function drawLayerViz() {
+    const canvas = document.getElementById('layerCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#08081a'; ctx.fillRect(0,0,W,H);
+
+    // Draw transformer layers
+    const numLayers = 12;
+    const layerW = 70, layerH = 30, gap = 6;
+    const startX = 60, startY = 30;
+
+    const components = [
+        { name: 'Q Proj', key: 'qkv', color: '#7c4dff' },
+        { name: 'K Proj', key: 'qkv', color: '#7c4dff' },
+        { name: 'V Proj', key: 'qkv', color: '#7c4dff' },
+        { name: 'Attn Out', key: 'attention', color: '#448aff' },
+        { name: 'FFN Up', key: 'ffn', color: '#26de81' },
+        { name: 'FFN Down', key: 'ffn', color: '#26de81' },
+    ];
+
+    let totalParams = 0;
+
+    for (let l = 0; l < numLayers; l++) {
+        const y = startY + l * (components.length * (layerH + 2) + gap);
+
+        // Layer label
+        ctx.fillStyle = '#555'; ctx.font = '11px monospace';
+        ctx.fillText(`L${l}`, startX - 30, y + 15);
+
+        components.forEach((comp, ci) => {
+            const cy = y + ci * (layerH + 2);
+            const isActive = layerTarget === 'all' || layerTarget === comp.key;
+            const alpha = isActive ? 1 : 0.2;
+
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = isActive ? comp.color : '#1a1a3a';
+            ctx.fillRect(startX + l * (layerW + 8), cy, layerW, layerH);
+
+            // Border
+            ctx.strokeStyle = isActive ? comp.color : '#2a2a4a';
+            ctx.lineWidth = isActive ? 2 : 1;
+            ctx.strokeRect(startX + l * (layerW + 8), cy, layerW, layerH);
+
+            // Label
+            ctx.fillStyle = isActive ? '#fff' : '#444';
+            ctx.font = '9px monospace';
+            ctx.fillText(comp.name, startX + l*(layerW+8) + 4, cy + 18);
+
+            if (isActive) totalParams += 4096 * 4096; // Approximate per component
+            ctx.globalAlpha = 1;
+        });
+    }
+
+    // Legend
+    const lx = startX + numLayers * (layerW + 8) + 30;
+    ctx.fillStyle = '#888'; ctx.font = '12px Inter';
+    ctx.fillText('Components:', lx, 40);
+    [{name:'Q/K/V Projections',color:'#7c4dff'},{name:'Attention Output',color:'#448aff'},{name:'FFN Layers',color:'#26de81'}].forEach((item,i) => {
+        ctx.fillStyle = item.color;
+        ctx.fillRect(lx, 55 + i*25, 16, 16);
+        ctx.fillStyle = '#aaa'; ctx.font = '11px Inter';
+        ctx.fillText(item.name, lx + 22, 67 + i*25);
+    });
+
+    // Update stats
+    const baseParams = 7e9;
+    const trainableParams = layerTarget === 'all' ? baseParams * 0.003 :
+                             layerTarget === 'qkv' ? baseParams * 0.001 :
+                             layerTarget === 'ffn' ? baseParams * 0.0015 :
+                             baseParams * 0.0005;
+    document.getElementById('layerParams').textContent = formatNum(trainableParams);
+    document.getElementById('layerPercent').textContent = (trainableParams/baseParams*100).toFixed(2) + '%';
+    document.getElementById('layerMemory').textContent = (trainableParams * 4 / 1e6).toFixed(1) + ' MB';
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLAYGROUND EXECUTION
+// ═══════════════════════════════════════════════════════════
+function runPlayground() {
+    const output = document.getElementById('playgroundOutput');
+    output.textContent = 'Running...';
+
+    setTimeout(() => {
+        const d = 4096, r = 8, alpha = 16;
+        const origParams = d * d;
+        const loraParams = 2 * d * r;
+        const compression = origParams / loraParams;
+        const scaling = alpha / r;
+
+        output.innerHTML = `<span style="color:#f9ca24">LoRALayer(d_in=4096, d_out=4096, rank=8, alpha=16)</span>
+
+<span style="color:#888"># Forward pass: h = W₀·x + (α/r)·B·A·x</span>
+Output shape: (4096,)
+Base output norm: 12.847
+LoRA output norm:  0.023 (small at init — expected!)
+Combined norm:     12.851
+
+<span style="color:#26de81">Original params: ${origParams.toLocaleString()}</span>
+<span style="color:#06b6d4">LoRA params: ${loraParams.toLocaleString()}</span>
+<span style="color:#f9ca24">Compression: ${compression.toFixed(1)}×</span>
+<span style="color:#eb4d4b">Memory saved: ${((1-loraParams/origParams)*100).toFixed(1)}%</span>
+
+<span style="color:#888"># Scaling factor: α/r = ${alpha}/${r} = ${scaling}</span>
+<span style="color:#888"># Merged weight: W' = W₀ + ${scaling.toFixed(2)} · B · A</span>
+<span style="color:#888"># Merge adds zero inference latency!</span>`;
+    }, 800);
+}
+
+// ═══════════════════════════════════════════════════════════
+// QUIZ
+// ═══════════════════════════════════════════════════════════
+const quizFeedback = [
+    ["Incorrect. While LoRA can be merged for fast inference, the primary motivation is parameter efficiency.", "Incorrect. This is a hypothesis about why LoRA works, but not the design goal.", "Correct! LoRA reduces trainable parameters by decomposing the update into low-rank factors, achieving 100-1000× compression.", "Incorrect. GPUs have no such limitation."],
+    ["Incorrect. Random init would break the frozen weight at t=0.", "Correct! B=0 ensures ΔW=0 at initialization, so the model starts from the pre-trained state.", "Incorrect. We don't want to copy the weights we're trying to adapt.", "Incorrect. Identity would add a non-zero update at initialization."],
+    ["Incorrect. That's just the rank.", "Incorrect. That's d×r only.", "Correct! B is (4096×8) + A is (8×4096) = 32,768 + 32,768 = 65,536 parameters.", "Incorrect. That's the full d² matrix size."],
+    ["Correct! α controls the magnitude of the LoRA update via the scaling factor α/r.", "Incorrect. Learning rate is separate from LoRA's scaling.", "Incorrect. Rank r is a separate hyperparameter.", "Incorrect. Initialization variance is controlled by σ²."],
+    ["Incorrect. No special instructions needed.", "Incorrect. Caching helps but isn't the key insight.", "Correct! W' = W₀ + B·A is computed once, yielding a single matrix with no extra inference cost.", "Incorrect. LoRA affects both training and inference (after merging)."]
+];
+
+function checkAnswer(option, idx) {
+    const q = option.closest('.quiz-question');
+    const correct = parseInt(q.dataset.correct);
+    const feedback = q.querySelector('.quiz-feedback');
+
+    q.querySelectorAll('.quiz-option').forEach((o,i) => {
+        o.classList.remove('correct','wrong');
+        if (i === correct) o.classList.add('correct');
+    });
+
+    if (idx !== correct) option.classList.add('wrong');
+
+    feedback.textContent = quizFeedback[Array.from(q.parentElement.children).indexOf(q)][idx];
+    feedback.style.display = 'block';
+    feedback.style.background = idx === correct ? '#26de8115' : '#ff6b6b15';
+    feedback.style.color = idx === correct ? '#26de81' : '#ff6b6b';
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+initDecomp();
+updateDecomposition();
+updateRankViz();
+drawLayerViz();
+</script>
+</body>
+</html>

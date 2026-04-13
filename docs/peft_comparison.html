@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PEFT Methods Comparison Dashboard</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+.header { padding: 16px 32px; background: linear-gradient(135deg, #1a0a2e, #0a1628); border-bottom: 1px solid #2a2a4a; text-align: center; }
+.header h1 { font-size: 24px; background: linear-gradient(90deg, #7c4dff, #448aff, #26de81); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.header p { font-size: 13px; color: #888; margin-top: 6px; }
+
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+.method-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.method-card { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden; }
+.method-card:hover { border-color: #7c4dff; transform: translateY(-2px); box-shadow: 0 8px 24px #7c4dff20; }
+.method-card.selected { border-color: #7c4dff; background: #1a1a3a; }
+.method-card .badge { position: absolute; top: 12px; right: 12px; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+.badge.popular { background: #7c4dff30; color: #7c4dff; }
+.badge.new { background: #26de8130; color: #26de81; }
+.badge.advanced { background: #f9ca2430; color: #f9ca24; }
+.method-card h3 { font-size: 16px; margin-bottom: 8px; }
+.method-card .subtitle { font-size: 12px; color: #888; margin-bottom: 12px; }
+.method-card .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.method-card .stat { background: #1a1a3a; padding: 8px; border-radius: 6px; }
+.method-card .stat .label { font-size: 10px; color: #666; text-transform: uppercase; }
+.method-card .stat .value { font-size: 14px; font-weight: 600; margin-top: 2px; }
+
+.comparison-section { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+.comparison-section h2 { font-size: 18px; margin-bottom: 16px; color: #7c4dff; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 12px; color: #888; border-bottom: 2px solid #2a2a4a; font-weight: 500; position: sticky; top: 0; background: #111128; }
+td { padding: 12px; border-bottom: 1px solid #1a1a3a; }
+tr:hover td { background: #1a1a3a; }
+.highlight { color: #7c4dff; font-weight: 600; }
+
+.bar-chart { margin-top: 16px; }
+.bar-row { display: flex; align-items: center; margin-bottom: 8px; }
+.bar-label { width: 120px; font-size: 12px; color: #888; }
+.bar-track { flex: 1; height: 24px; background: #1a1a3a; border-radius: 4px; overflow: hidden; position: relative; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; display: flex; align-items: center; padding-left: 8px; font-size: 11px; font-weight: 600; }
+
+.filters { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+.filter-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #2a2a4a; background: transparent; color: #888; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+.filter-btn.active { background: #7c4dff; border-color: #7c4dff; color: #fff; }
+.filter-btn:hover { border-color: #7c4dff; }
+.search-input { background: #1a1a3a; border: 1px solid #2a2a4a; border-radius: 6px; padding: 8px 12px; color: #e0e0e0; font-size: 13px; width: 200px; }
+.search-input:focus { outline: none; border-color: #7c4dff; }
+
+.detail-panel { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; display: none; }
+.detail-panel.visible { display: block; }
+.detail-panel h2 { font-size: 18px; color: #7c4dff; margin-bottom: 12px; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.detail-section { background: #1a1a3a; padding: 16px; border-radius: 8px; }
+.detail-section h4 { font-size: 13px; color: #448aff; margin-bottom: 8px; }
+.detail-section p { font-size: 12px; color: #aaa; line-height: 1.6; }
+.code-block { background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 6px; padding: 12px; font-family: 'Fira Code', monospace; font-size: 11px; line-height: 1.6; margin-top: 8px; color: #ccc; overflow-x: auto; }
+.code-block .kw { color: #c678dd; }
+.code-block .fn { color: #61afef; }
+.code-block .str { color: #98c379; }
+.code-block .num { color: #d19a66; }
+.code-block .cmt { color: #5c6370; font-style: italic; }
+
+.quiz-section { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; margin-top: 24px; }
+.quiz-section h2 { font-size: 18px; color: #f9ca24; margin-bottom: 16px; }
+.quiz-question { background: #1a1a3a; padding: 16px; border-radius: 8px; margin-bottom: 12px; }
+.quiz-question p { font-size: 14px; margin-bottom: 12px; }
+.quiz-options { display: flex; flex-direction: column; gap: 8px; }
+.quiz-option { padding: 10px 14px; background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.quiz-option:hover { border-color: #7c4dff; }
+.quiz-option.correct { border-color: #26de81; background: #26de8115; }
+.quiz-option.wrong { border-color: #ff6b6b; background: #ff6b6b15; }
+.quiz-feedback { font-size: 12px; margin-top: 8px; padding: 8px; border-radius: 4px; display: none; }
+.quiz-feedback.show { display: block; }
+.quiz-feedback.correct { background: #26de8115; color: #26de81; }
+.quiz-feedback.wrong { background: #ff6b6b15; color: #ff6b6b; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>PEFT Methods Comparison</h1>
+    <p>Parameter-Efficient Fine-Tuning — Interactive comparison of 10+ methods</p>
+</div>
+
+<div class="container">
+    <div class="filters">
+        <input type="text" class="search-input" placeholder="Search methods..." oninput="filterMethods(this.value)">
+        <button class="filter-btn active" onclick="setFilter('all', this)">All Methods</button>
+        <button class="filter-btn" onclick="setFilter('adapter', this)">Adapters</button>
+        <button class="filter-btn" onclick="setFilter('prompt', this)">Prompt-based</button>
+        <button class="filter-btn" onclick="setFilter('lowrank', this)">Low-Rank</button>
+        <button class="filter-btn" onclick="setFilter('quantization', this)">Quantization</button>
+    </div>
+
+    <div class="method-grid" id="methodGrid"></div>
+
+    <div class="comparison-section">
+        <h2>Trainable Parameters Comparison</h2>
+        <div class="bar-chart" id="paramChart"></div>
+    </div>
+
+    <div class="comparison-section">
+        <h2>Memory Efficiency</h2>
+        <div class="bar-chart" id="memoryChart"></div>
+    </div>
+
+    <div class="comparison-section">
+        <h2>Performance vs Full Fine-Tuning</h2>
+        <div class="bar-chart" id="perfChart"></div>
+    </div>
+
+    <div class="comparison-section">
+        <h2>Detailed Comparison</h2>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr><th>Method</th><th>Category</th><th>Trainable Params</th><th>Memory</th><th>Speed</th><th>Quality</th><th>Best For</th></tr>
+                </thead>
+                <tbody id="comparisonBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="detail-panel" id="detailPanel">
+        <h2 id="detailTitle"></h2>
+        <div class="detail-grid">
+            <div class="detail-section"><h4>How It Works</h4><p id="detailHow"></p></div>
+            <div class="detail-section"><h4>When to Use</h4><p id="detailWhen"></p></div>
+            <div class="detail-section"><h4>Advantages</h4><p id="detailPros"></p></div>
+            <div class="detail-section"><h4>Limitations</h4><p id="detailCons"></p></div>
+        </div>
+        <div style="margin-top: 16px;">
+            <h4 style="color: #448aff; margin-bottom: 8px;">Code Example</h4>
+            <div class="code-block" id="detailCode"></div>
+        </div>
+    </div>
+
+    <div class="quiz-section">
+        <h2>Test Your Knowledge</h2>
+        <div id="quizContainer"></div>
+    </div>
+</div>
+
+<script>
+const methods = [
+    { name: 'LoRA', fullName: 'Low-Rank Adaptation', category: 'lowrank', badge: 'popular', params: '0.1-1%', memory: 'Low', speed: 'Fast', quality: '95-99%', bestFor: 'General fine-tuning', trainableParams: 0.5, memoryScore: 85, perfScore: 97, color: '#7c4dff', how: 'Freezes pre-trained weights and injects trainable low-rank decomposition matrices into each layer. Instead of training W (d x d), trains A (d x r) and B (r x d) where r << d. Delta_W = A * B.', when: 'Best default choice for fine-tuning. Works well for most tasks including classification, generation, and instruction tuning. Use rank 8-64 for most cases.', pros: 'No inference latency (merged into base weights). Simple to implement. Composable (multiple LoRAs can be combined). Well-supported in HuggingFace.', cons: 'Rank selection requires tuning. May underperform on very complex tasks. Not ideal for pre-training.', code: '<span class="cmt"># LoRA in 3 lines</span>\n<span class="kw">from</span> peft <span class="kw">import</span> LoraConfig, get_peft_model\nconfig = LoraConfig(r=<span class="num">16</span>, lora_alpha=<span class="num">32</span>, target_modules=[<span class="str">"q_proj"</span>, <span class="str">"v_proj"</span>])\nmodel = get_peft_model(model, config)' },
+    { name: 'QLoRA', fullName: 'Quantized LoRA', category: 'quantization', badge: 'popular', params: '0.1-1%', memory: 'Very Low', speed: 'Medium', quality: '95-99%', bestFor: 'Consumer GPUs', trainableParams: 0.5, memoryScore: 95, perfScore: 96, color: '#448aff', how: 'Combines 4-bit quantization (NF4) of the base model with LoRA adapters. The base model is frozen in 4-bit precision, while LoRA adapters train in float16.', when: 'When you need to fine-tune large models (7B-70B) on consumer GPUs (24GB or less).', pros: 'Dramatic memory reduction (up to 4x). Maintains LoRA quality. Enables fine-tuning models that otherwise would not fit.', cons: 'Slightly slower due to quantization/dequantization. Requires bitsandbytes library.', code: '<span class="cmt"># QLoRA: 4-bit base + LoRA</span>\n<span class="kw">from</span> transformers <span class="kw">import</span> BitsAndBytesConfig\nbnb_config = BitsAndBytesConfig(load_in_4bit=<span class="num">True</span>)\nmodel = AutoModel.from_pretrained(name, quantization_config=bnb_config)' },
+    { name: 'DoRA', fullName: 'Weight-Decomposed LoRA', category: 'lowrank', badge: 'new', params: '0.1-1%', memory: 'Low', speed: 'Fast', quality: '96-99%', bestFor: 'Higher quality LoRA', trainableParams: 0.6, memoryScore: 83, perfScore: 98, color: '#26de81', how: 'Decomposes weights into magnitude and direction components, then applies LoRA only to the direction.', when: 'When you need slightly better quality than standard LoRA with minimal additional cost.', pros: 'Consistently outperforms LoRA. Same merge-inference benefit. Minimal additional parameters.', cons: 'Slightly more complex. Magnitude decomposition adds small compute overhead.', code: '<span class="cmt"># DoRA: magnitude + direction</span>\n<span class="kw">class</span> <span class="fn">DoRAAdapter</span>:\n    <span class="kw">def</span> <span class="fn">forward</span>(self, W, x):\n        m = self.magnitude\n        V = W + self.A @ self.B\n        <span class="kw">return</span> m * (V / torch.norm(V, dim=-<span class="num">1</span>)) @ x' },
+    { name: 'GaLore', fullName: 'Gradient Low-Rank Projection', category: 'lowrank', badge: 'new', params: '100% (projected)', memory: 'Very Low', speed: 'Medium', quality: '98-100%', bestFor: 'Pre-training', trainableParams: 100, memoryScore: 92, perfScore: 99, color: '#f9ca24', how: 'Projects gradients to low-rank subspace while keeping weights full-rank. Optimizer states are low-rank.', when: 'Pre-training or full fine-tuning where you want LoRA-like memory savings without sacrificing capacity.', pros: 'Full model capacity. Massive optimizer memory savings (32x). Works for pre-training.', cons: 'More complex than LoRA. SVD projection has overhead.', code: '<span class="cmt"># GaLore: low-rank gradient projection</span>\n<span class="kw">from</span> galore <span class="kw">import</span> GaLoreAdam, GaLoreConfig\nconfig = GaLoreConfig(rank=<span class="num">128</span>)\noptimizer = GaLoreAdam(model.parameters(), config)' },
+    { name: 'Prefix Tuning', fullName: 'Prefix Tuning', category: 'prompt', badge: null, params: '0.1%', memory: 'Very Low', speed: 'Very Fast', quality: '90-95%', bestFor: 'Generation tasks', trainableParams: 0.1, memoryScore: 90, perfScore: 92, color: '#ff6b6b', how: 'Prepends trainable continuous vectors to key and value tensors at each attention layer.', when: 'Lightweight adapter for generation tasks. Good for few-shot scenarios.', pros: 'Extremely few parameters. No architectural changes. Works well for generation.', cons: 'Reduces effective context length. Can be unstable to train.', code: '<span class="cmt"># Prefix Tuning</span>\n<span class="kw">from</span> peft <span class="kw">import</span> PrefixTuningConfig\nconfig = PrefixTuningConfig(num_virtual_tokens=<span class="num">20</span>)' },
+    { name: 'Prompt Tuning', fullName: 'Prompt Tuning', category: 'prompt', badge: null, params: '0.01%', memory: 'Minimal', speed: 'Very Fast', quality: '85-93%', bestFor: 'Multi-task serving', trainableParams: 0.01, memoryScore: 98, perfScore: 88, color: '#ff9ff3', how: 'Learns a continuous prompt prepended to the input embedding. Only the prompt is trained.', when: 'Multi-task serving where each task has its own soft prompt.', pros: 'Fewest parameters. Easy to implement. Task-specific prompts swap at inference.', cons: 'Quality gap on complex tasks. Limited expressiveness.', code: '<span class="cmt"># Prompt Tuning</span>\n<span class="kw">from</span> peft <span class="kw">import</span> PromptTuningConfig\nconfig = PromptTuningConfig(num_virtual_tokens=<span class="num">8</span>)' },
+    { name: 'IA3', fullName: 'Infused Adapter by Inhibiting and Amplifying Inner Activations', category: 'adapter', badge: null, params: '0.01%', memory: 'Minimal', speed: 'Very Fast', quality: '90-95%', bestFor: 'Few-shot adaptation', trainableParams: 0.01, memoryScore: 97, perfScore: 92, color: '#54a0ff', how: 'Learns rescaling vectors that multiply with key, value, and FFN activations.', when: 'Few-shot or zero-shot adaptation. Extremely lightweight adapters.', pros: 'Extremely few parameters. No architectural overhead. Fast training.', cons: 'Limited expressiveness (only rescaling). Less community adoption.', code: '<span class="cmt"># IA3: learned rescaling</span>\n<span class="kw">from</span> peft <span class="kw">import</span> IA3Config\nconfig = IA3Config(task_type=<span class="str">"CAUSAL_LM"</span>)' },
+    { name: 'BitFit', fullName: 'Bias-term Fine-Tuning', category: 'adapter', badge: null, params: '0.1%', memory: 'Minimal', speed: 'Very Fast', quality: '88-94%', bestFor: 'Quick experiments', trainableParams: 0.1, memoryScore: 96, perfScore: 90, color: '#5f27cd', how: 'Freezes all weights and only trains bias terms. Surprisingly effective for many NLP tasks.', when: 'Quick experiments or when compute is extremely limited. Good baseline.', pros: 'Simplest approach. Very few parameters. Fast training.', cons: 'Limited expressiveness. Not suitable for generation.', code: '<span class="cmt"># BitFit: only train biases</span>\n<span class="kw">for</span> name, param <span class="kw">in</span> model.named_parameters():\n    <span class="kw">if</span> <span class="str">"bias"</span> <span class="kw">not in</span> name:\n        param.requires_grad = <span class="num">False</span>' },
+    { name: 'LoHa', fullName: 'Low-Rank Hadamard Product', category: 'lowrank', badge: 'advanced', params: '0.1-1%', memory: 'Low', speed: 'Fast', quality: '95-98%', bestFor: 'Multi-adapter composition', trainableParams: 0.5, memoryScore: 84, perfScore: 96, color: '#ff6348', how: 'Uses Hadamard product of two low-rank pairs: Delta_W = (B1*B2) @ (A1*A2). More expressive than LoRA.', when: 'Composing multiple adapters or when standard LoRA underperforms.', pros: 'More expressive than LoRA. Better for composing adaptations.', cons: 'More complex implementation. Less community support.', code: '<span class="cmt"># LoHa: Hadamard product</span>\nB = self.B1 * self.B2\nA = self.A1 * self.A2\n<span class="kw">return</span> x + (B @ A) @ x * self.scale' },
+    { name: 'Adapter Fusion', fullName: 'Adapter Fusion', category: 'adapter', badge: 'advanced', params: '1-5%', memory: 'Medium', speed: 'Medium', quality: '96-99%', bestFor: 'Multi-task learning', trainableParams: 3, memoryScore: 70, perfScore: 98, color: '#2ed573', how: 'Trains task-specific adapters independently, then learns attention-based fusion to combine them.', when: 'Multi-task scenarios combining knowledge from multiple adapters.', pros: 'Combines multiple task adapters. Enables continual learning.', cons: 'Requires pre-trained adapters. More complex pipeline.', code: '<span class="cmt"># AdapterFusion</span>\nmanager = MultiTaskAdapterManager()\nmanager.add_adapter(<span class="str">"task1"</span>, adapter1)\nfused = manager.fuse_adapters([<span class="str">"task1"</span>, <span class="str">"task2"</span>])' },
+];
+
+function renderMethodCards(filtered = methods) {
+    const grid = document.getElementById('methodGrid');
+    grid.innerHTML = '';
+    filtered.forEach(m => {
+        const card = document.createElement('div');
+        card.className = 'method-card';
+        card.onclick = () => selectMethod(m);
+        card.innerHTML = `${m.badge ? `<span class="badge ${m.badge}">${m.badge}</span>` : ''}<h3 style="color:${m.color}">${m.name}</h3><div class="subtitle">${m.fullName}</div><div class="stats"><div class="stat"><div class="label">Trainable</div><div class="value" style="color:${m.color}">${m.params}</div></div><div class="stat"><div class="label">Memory</div><div class="value">${m.memory}</div></div><div class="stat"><div class="label">Speed</div><div class="value">${m.speed}</div></div><div class="stat"><div class="label">Quality</div><div class="value">${m.quality}</div></div></div>`;
+        grid.appendChild(card);
+    });
+}
+
+function selectMethod(m) {
+    document.querySelectorAll('.method-card').forEach(c => c.classList.remove('selected'));
+    event.currentTarget.classList.add('selected');
+    const panel = document.getElementById('detailPanel');
+    panel.classList.add('visible');
+    document.getElementById('detailTitle').textContent = `${m.name} - ${m.fullName}`;
+    document.getElementById('detailHow').textContent = m.how;
+    document.getElementById('detailWhen').textContent = m.when;
+    document.getElementById('detailPros').textContent = m.pros;
+    document.getElementById('detailCons').textContent = m.cons;
+    document.getElementById('detailCode').innerHTML = m.code;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderBarChart(containerId, data, maxValue) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    data.forEach(d => {
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        const pct = (d.value / maxValue * 100).toFixed(0);
+        row.innerHTML = `<div class="bar-label">${d.label}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${d.color};">${pct}%</div></div>`;
+        container.appendChild(row);
+    });
+}
+
+function renderCharts() {
+    renderBarChart('paramChart', methods.map(m => ({ label: m.name, value: m.trainableParams, color: m.color })), 100);
+    renderBarChart('memoryChart', methods.map(m => ({ label: m.name, value: m.memoryScore, color: m.color })), 100);
+    renderBarChart('perfChart', methods.map(m => ({ label: m.name, value: m.perfScore, color: m.color })), 100);
+}
+
+function renderComparisonTable() {
+    const tbody = document.getElementById('comparisonBody');
+    tbody.innerHTML = '';
+    methods.forEach(m => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><span style="color:${m.color};">&#9679;</span> <strong>${m.name}</strong></td><td>${m.category}</td><td class="highlight">${m.params}</td><td>${m.memory}</td><td>${m.speed}</td><td>${m.quality}</td><td>${m.bestFor}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+let currentFilter = 'all';
+function setFilter(filter, btn) { currentFilter = filter; document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); applyFilters(); }
+function filterMethods(query) { applyFilters(query); }
+function applyFilters(query = '') {
+    let filtered = methods;
+    if (currentFilter !== 'all') filtered = filtered.filter(m => m.category === currentFilter);
+    if (query) { const q = query.toLowerCase(); filtered = filtered.filter(m => m.name.toLowerCase().includes(q) || m.fullName.toLowerCase().includes(q) || m.bestFor.toLowerCase().includes(q)); }
+    renderMethodCards(filtered);
+}
+
+const quizQuestions = [
+    { q: 'Which PEFT method is best as a default choice for fine-tuning?', options: ['Prefix Tuning', 'LoRA', 'BitFit', 'IA3'], correct: 1, explanation: 'LoRA is the most widely-used PEFT method, offering a great balance of quality, simplicity, and inference efficiency.' },
+    { q: 'What does QLoRA add on top of LoRA?', options: ['More rank', '4-bit quantization of base model', 'Attention mechanisms', 'Extra layers'], correct: 1, explanation: 'QLoRA quantizes the frozen base model to 4-bit (NF4), enabling fine-tuning of much larger models on consumer GPUs.' },
+    { q: 'Which method has the fewest trainable parameters?', options: ['LoRA', 'BitFit', 'Prompt Tuning', 'IA3'], correct: 2, explanation: 'Prompt Tuning only trains a small set of continuous vectors prepended to the input, typically 0.01% of parameters.' },
+    { q: 'What is the key innovation of DoRA over LoRA?', options: ['Uses more rank', 'Decomposes weights into magnitude + direction', 'Uses quantization', 'Adds more layers'], correct: 1, explanation: 'DoRA decomposes pre-trained weights into magnitude and direction components, applying LoRA only to the direction.' },
+    { q: 'Which method is best for pre-training (not just fine-tuning)?', options: ['LoRA', 'Prefix Tuning', 'GaLore', 'BitFit'], correct: 2, explanation: 'GaLore projects gradients to low-rank subspace while keeping weights full-rank, making it suitable for pre-training.' },
+];
+
+function renderQuiz() {
+    const container = document.getElementById('quizContainer');
+    container.innerHTML = '';
+    quizQuestions.forEach((q, qi) => {
+        const div = document.createElement('div');
+        div.className = 'quiz-question';
+        div.innerHTML = `<p><strong>Q${qi + 1}:</strong> ${q.q}</p><div class="quiz-options">${q.options.map((opt, oi) => `<div class="quiz-option" onclick="checkAnswer(${qi}, ${oi}, this)">${opt}</div>`).join('')}</div><div class="quiz-feedback" id="feedback-${qi}">${q.explanation}</div>`;
+        container.appendChild(div);
+    });
+}
+
+function checkAnswer(qi, oi, el) {
+    const q = quizQuestions[qi];
+    const options = el.parentElement.querySelectorAll('.quiz-option');
+    const feedback = document.getElementById(`feedback-${qi}`);
+    options.forEach(o => { o.style.pointerEvents = 'none'; o.classList.remove('correct', 'wrong'); });
+    if (oi === q.correct) { el.classList.add('correct'); feedback.className = 'quiz-feedback show correct'; }
+    else { el.classList.add('wrong'); options[q.correct].classList.add('correct'); feedback.className = 'quiz-feedback show wrong'; }
+}
+
+renderMethodCards();
+renderCharts();
+renderComparisonTable();
+renderQuiz();
+</script>
+</body>
+</html>

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoRA Rank Selection Guide</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+.header { padding: 16px 32px; background: linear-gradient(135deg, #1a0a2e, #0a1628); border-bottom: 1px solid #2a2a4a; text-align: center; }
+.header h1 { font-size: 24px; background: linear-gradient(90deg, #7c4dff, #448aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.header p { font-size: 13px; color: #888; margin-top: 6px; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+/* Calculator section */
+.calculator { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+.calculator h2 { font-size: 18px; color: #7c4dff; margin-bottom: 16px; }
+.input-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.input-group { display: flex; flex-direction: column; }
+.input-group label { font-size: 12px; color: #888; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.input-group input, .input-group select { background: #1a1a3a; border: 1px solid #2a2a4a; border-radius: 6px; padding: 10px 12px; color: #e0e0e0; font-size: 14px; }
+.input-group input:focus, .input-group select:focus { outline: none; border-color: #7c4dff; }
+
+/* Results */
+.results { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+.result-card { background: #1a1a3a; border-radius: 8px; padding: 16px; text-align: center; }
+.result-card .label { font-size: 11px; color: #888; text-transform: uppercase; }
+.result-card .value { font-size: 24px; font-weight: 700; margin: 8px 0 4px; }
+.result-card .subtext { font-size: 10px; color: #666; }
+
+/* Recommendation */
+.recommendation { background: linear-gradient(135deg, #1a2a3a, #1a1a3a); border: 1px solid #448aff40; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+.recommendation h3 { color: #448aff; margin-bottom: 8px; }
+.recommendation .rank { font-size: 36px; font-weight: 700; color: #7c4dff; margin: 8px 0; }
+.recommendation .reasoning { font-size: 13px; color: #aaa; line-height: 1.6; }
+
+/* Chart */
+.chart-container { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+.chart-container h2 { font-size: 18px; color: #448aff; margin-bottom: 16px; }
+canvas { width: 100%; border-radius: 8px; }
+
+/* Guidelines */
+.guidelines { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.guideline-card { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; }
+.guideline-card h3 { font-size: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.guideline-card ul { list-style: none; padding: 0; }
+.guideline-card li { padding: 6px 0; font-size: 13px; color: #aaa; border-bottom: 1px solid #1a1a3a; }
+.guideline-card li:last-child { border-bottom: none; }
+.guideline-card li strong { color: #e0e0e0; }
+
+/* Tradeoff table */
+table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px; }
+th { text-align: left; padding: 10px; color: #888; border-bottom: 2px solid #2a2a4a; font-weight: 500; }
+td { padding: 10px; border-bottom: 1px solid #1a1a3a; }
+tr:hover td { background: #1a1a3a; }
+.highlight { color: #7c4dff; font-weight: 600; }
+.good { color: #26de81; }
+.warn { color: #f9ca24; }
+.bad { color: #ff6b6b; }
+
+/* Interactive rank slider */
+.rank-slider { margin: 20px 0; }
+.rank-slider input[type="range"] { width: 100%; accent-color: #7c4dff; }
+.rank-labels { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>LoRA Rank Selection Guide</h1>
+    <p>Interactive tool to choose the optimal LoRA rank for your fine-tuning task</p>
+</div>
+
+<div class="container">
+    <!-- Calculator -->
+    <div class="calculator">
+        <h2>Rank Calculator</h2>
+        <div class="input-grid">
+            <div class="input-group">
+                <label>Base Model Parameters</label>
+                <select id="modelSize" onchange="calculate()">
+                    <option value="125">125M (Small)</option>
+                    <option value="350">350M (Medium)</option>
+                    <option value="1300">1.3B (Large)</option>
+                    <option value="7000" selected>7B (Llama-2)</option>
+                    <option value="13000">13B (Llama-2)</option>
+                    <option value="70000">70B (Llama-2)</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Task Type</label>
+                <select id="taskType" onchange="calculate()">
+                    <option value="classification">Classification</option>
+                    <option value="ner">Named Entity Recognition</option>
+                    <option value="summarization">Summarization</option>
+                    <option value="instruction" selected>Instruction Tuning</option>
+                    <option value="chat">Chat / Dialogue</option>
+                    <option value="code">Code Generation</option>
+                    <option value="reasoning">Complex Reasoning</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Dataset Size</label>
+                <select id="datasetSize" onchange="calculate()">
+                    <option value="small">< 1K samples</option>
+                    <option value="medium" selected>1K - 10K samples</option>
+                    <option value="large">10K - 100K samples</option>
+                    <option value="xlarge">> 100K samples</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>GPU Memory</label>
+                <select id="gpuMemory" onchange="calculate()">
+                    <option value="8">8 GB (RTX 3070)</option>
+                    <option value="16">16 GB (RTX 4080)</option>
+                    <option value="24" selected>24 GB (RTX 4090/A5000)</option>
+                    <option value="48">48 GB (A6000/L40)</option>
+                    <option value="80">80 GB (A100/H100)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="results">
+            <div class="result-card">
+                <div class="label">Recommended Rank</div>
+                <div class="value" id="recRank" style="color:#7c4dff;">16</div>
+                <div class="subtext">r = 16</div>
+            </div>
+            <div class="result-card">
+                <div class="label">Trainable Parameters</div>
+                <div class="value" id="trainParams" style="color:#448aff;">2.1M</div>
+                <div class="subtext">0.03% of model</div>
+            </div>
+            <div class="result-card">
+                <div class="label">Memory Usage</div>
+                <div class="value" id="memUsage" style="color:#26de81;">4.2 GB</div>
+                <div class="subtext">With 7B base model</div>
+            </div>
+            <div class="result-card">
+                <div class="label">Alpha / Rank Ratio</div>
+                <div class="value" id="alphaRatio" style="color:#f9ca24;">2x</div>
+                <div class="subtext">alpha = 32</div>
+            </div>
+        </div>
+
+        <!-- Recommendation -->
+        <div class="recommendation">
+            <h3>Recommendation</h3>
+            <div class="rank" id="recRankBig">r = 16</div>
+            <div class="reasoning" id="reasoning">
+                For instruction tuning on a 7B model with 1K-10K samples, rank 16 provides the best
+                balance of quality and efficiency. This captures sufficient task-specific knowledge
+                while keeping training fast and memory-efficient.
+            </div>
+        </div>
+
+        <!-- Interactive rank slider -->
+        <div class="rank-slider">
+            <label style="font-size:13px;color:#888;">Explore different ranks:</label>
+            <input type="range" id="rankSlider" min="1" max="128" value="16" step="1" oninput="updateRank(this.value)">
+            <div class="rank-labels">
+                <span>1 (minimal)</span>
+                <span>4</span>
+                <span>8</span>
+                <span>16</span>
+                <span>32</span>
+                <span>64</span>
+                <span>128 (maximal)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-container">
+        <h2>Rank vs Quality Tradeoff</h2>
+        <canvas id="tradeoffChart" height="250"></canvas>
+    </div>
+
+    <!-- Guidelines -->
+    <div class="guidelines">
+        <div class="guideline-card">
+            <h3 style="color:#26de81;">When to Use Low Rank (1-8)</h3>
+            <ul>
+                <li><strong>Simple tasks:</strong> Classification, NER, sentiment analysis</li>
+                <li><strong>Small datasets:</strong> < 1K samples (low rank prevents overfitting)</li>
+                <li><strong>Memory constrained:</strong> Consumer GPUs (8-16GB)</li>
+                <li><strong>Quick iteration:</strong> Prototyping and experimentation</li>
+                <li><strong>Multi-adapter:</strong> Serving many task-specific adapters</li>
+            </ul>
+        </div>
+        <div class="guideline-card">
+            <h3 style="color:#7c4dff;">When to Use Medium Rank (16-32)</h3>
+            <ul>
+                <li><strong>Instruction tuning:</strong> Chat, QA, summarization</li>
+                <li><strong>Medium datasets:</strong> 1K-100K samples</li>
+                <li><strong>Good balance:</strong> Quality vs speed sweet spot</li>
+                <li><strong>Most use cases:</strong> Default recommendation</li>
+                <li><strong>Production:</strong> When quality matters but cost does too</li>
+            </ul>
+        </div>
+        <div class="guideline-card">
+            <h3 style="color:#f9ca24;">When to Use High Rank (64-128)</h3>
+            <ul>
+                <li><strong>Complex tasks:</strong> Reasoning, code generation, math</li>
+                <li><strong>Large datasets:</strong> > 100K samples</li>
+                <li><strong>Domain adaptation:</strong> Medical, legal, scientific</li>
+                <li><strong>Maximum quality:</strong> When compute is not a constraint</li>
+                <li><strong>Close to full FT:</strong> When LoRA must match full fine-tuning</li>
+            </ul>
+        </div>
+        <div class="guideline-card">
+            <h3 style="color:#ff6b6b;">Common Mistakes</h3>
+            <ul>
+                <li><strong>Too high rank:</strong> Overfits on small datasets, wastes compute</li>
+                <li><strong>Too low rank:</strong> Underfits on complex tasks</li>
+                <li><strong>Wrong alpha:</strong> alpha should be 2x rank (scaling factor)</li>
+                <li><strong>Wrong targets:</strong> Always target q_proj and v_proj minimum</li>
+                <li><strong>Ignoring data:</strong> More data = can use higher rank safely</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Detailed tradeoff table -->
+    <div class="chart-container">
+        <h2>Detailed Rank Comparison</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Parameters (7B)</th>
+                    <th>Memory Overhead</th>
+                    <th>Training Speed</th>
+                    <th>Quality</th>
+                    <th>Best For</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="highlight">r=1</td>
+                    <td>~0.1M</td>
+                    <td class="good">Minimal</td>
+                    <td class="good">Fastest</td>
+                    <td class="bad">Limited</td>
+                    <td>Quick prototypes, extreme constraints</td>
+                </tr>
+                <tr>
+                    <td class="highlight">r=4</td>
+                    <td>~0.5M</td>
+                    <td class="good">Very Low</td>
+                    <td class="good">Very Fast</td>
+                    <td class="warn">Basic</td>
+                    <td>Simple classification, NER</td>
+                </tr>
+                <tr>
+                    <td class="highlight">r=8</td>
+                    <td>~1.0M</td>
+                    <td class="good">Low</td>
+                    <td class="good">Fast</td>
+                    <td class="warn">Good</td>
+                    <td>Most NLU tasks, summarization</td>
+                </tr>
+                <tr>
+                    <td class="highlight">r=16</td>
+                    <td>~2.1M</td>
+                    <td class="good">Low</td>
+                    <td class="good">Fast</td>
+                    <td class="good">Very Good</td>
+                    <td>Instruction tuning, chat (default)</td>
+                </tr>
+                <tr>
+                    <td class="highlight">r=32</td>
+                    <td>~4.2M</td>
+                    <td class="warn">Moderate</td>
+                    <td class="warn">Medium</td>
+                    <td class="good">Excellent</td>
+                    <td>Complex reasoning, code generation</td>
+                </tr>
+                <tr>
+                    <td class="highlight">r=64</td>
+                    <td>~8.4M</td>
+                    <td class="warn">Moderate</td>
+                    <td class="warn">Slower</td>
+                    <td class="good">Near Full FT</td>
+                    <td>Domain adaptation, large datasets</td>
+                </tr>
+                <tr>
+                    <td class="highlight">r=128</td>
+                    <td>~16.8M</td>
+                    <td class="bad">High</td>
+                    <td class="bad">Slow</td>
+                    <td class="good">Full FT Quality</td>
+                    <td>Maximum quality, research</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+// ========================================================================
+// RANK RECOMMENDATION ENGINE
+// ========================================================================
+
+const taskComplexity = {
+    classification: { base: 4, max: 16, label: 'Classification' },
+    ner: { base: 4, max: 16, label: 'Named Entity Recognition' },
+    summarization: { base: 8, max: 32, label: 'Summarization' },
+    instruction: { base: 16, max: 64, label: 'Instruction Tuning' },
+    chat: { base: 16, max: 64, label: 'Chat / Dialogue' },
+    code: { base: 32, max: 128, label: 'Code Generation' },
+    reasoning: { base: 32, max: 128, label: 'Complex Reasoning' },
+};
+
+const datasetMultiplier = {
+    small: 0.5,
+    medium: 1.0,
+    large: 1.5,
+    xlarge: 2.0,
+};
+
+function calculate() {
+    const modelM = parseInt(document.getElementById('modelSize').value);
+    const task = document.getElementById('taskType').value;
+    const dataset = document.getElementById('datasetSize').value;
+    const gpuGB = parseInt(document.getElementById('gpuMemory').value);
+
+    const taskInfo = taskComplexity[task];
+    const dataMult = datasetMultiplier[dataset];
+
+    // Base rank from task complexity
+    let rank = taskInfo.base * dataMult;
+
+    // Scale with model size (larger models can use lower rank for same quality)
+    if (modelM >= 70000) rank *= 0.7;
+    else if (modelM >= 13000) rank *= 0.85;
+    else if (modelM >= 7000) rank *= 1.0;
+    else rank *= 1.2;
+
+    // Cap by GPU memory
+    const memPerRank = modelM * 2 * 4 / 1e6; // rough: 2 matrices * 4 bytes per param per rank
+    const maxRankByMem = Math.floor((gpuGB * 0.6 * 1e9) / (memPerRank * 1000));
+    rank = Math.min(rank, maxRankByMem, taskInfo.max);
+
+    // Round to nearest power of 2
+    rank = Math.pow(2, Math.round(Math.log2(Math.max(1, rank))));
+    rank = Math.max(1, Math.min(128, rank));
+
+    // Compute derived values
+    const alpha = rank * 2;
+    const trainableParams = rank * 2 * 2048 * 32; // rough: 2 matrices per layer, ~32 target modules
+    const trainablePct = (trainableParams / (modelM * 1e6)) * 100;
+    const baseMemGB = modelM * 2 / 1000; // FP16 base model
+    const loraMemGB = trainableParams * 4 / 1e9; // FP32 LoRA params + gradients
+    const totalMem = baseMemGB + loraMemGB + 2; // +2 for optimizer states
+
+    // Update UI
+    document.getElementById('recRank').textContent = rank;
+    document.getElementById('recRankBig').textContent = `r = ${rank}`;
+    document.getElementById('trainParams').textContent = formatParams(trainableParams);
+    document.getElementById('memUsage').textContent = totalMem.toFixed(1) + ' GB';
+    document.getElementById('alphaRatio').textContent = `${alpha / rank}x (alpha=${alpha})`;
+
+    // Update slider
+    document.getElementById('rankSlider').value = rank;
+
+    // Generate reasoning
+    const reasoning = generateReasoning(rank, task, dataset, modelM, gpuGB);
+    document.getElementById('reasoning').textContent = reasoning;
+
+    // Update chart
+    drawChart(rank);
+}
+
+function formatParams(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+    return n.toString();
+}
+
+function generateReasoning(rank, task, dataset, modelM, gpuGB) {
+    const taskInfo = taskComplexity[task];
+    let reasoning = '';
+
+    if (rank <= 4) {
+        reasoning = `Rank ${rank} is minimal, suitable for simple ${taskInfo.label.toLowerCase()} tasks with very limited data. `;
+        reasoning += 'Consider increasing rank if quality is insufficient. ';
+    } else if (rank <= 16) {
+        reasoning = `Rank ${rank} provides a good balance for ${taskInfo.label.toLowerCase()}. `;
+        reasoning += 'This is the recommended default for most fine-tuning tasks. ';
+    } else if (rank <= 32) {
+        reasoning = `Rank ${rank} is suitable for complex ${taskInfo.label.toLowerCase()} tasks. `;
+        reasoning += 'Higher quality but requires more compute and memory. ';
+    } else {
+        reasoning = `Rank ${rank} is high, approaching full fine-tuning quality. `;
+        reasoning += 'Use when maximum quality is needed and compute is available. ';
+    }
+
+    if (dataset === 'small') {
+        reasoning += 'With a small dataset, be cautious of overfitting — consider early stopping.';
+    } else if (dataset === 'xlarge') {
+        reasoning += 'With a large dataset, you have room to increase rank further if needed.';
+    }
+
+    return reasoning;
+}
+
+function updateRank(rank) {
+    rank = parseInt(rank);
+    document.getElementById('recRank').textContent = rank;
+    document.getElementById('recRankBig').textContent = `r = ${rank}`;
+
+    const alpha = rank * 2;
+    const modelM = parseInt(document.getElementById('modelSize').value);
+    const trainableParams = rank * 2 * 2048 * 32;
+    const trainablePct = (trainableParams / (modelM * 1e6)) * 100;
+
+    document.getElementById('trainParams').textContent = formatParams(trainableParams);
+    document.getElementById('alphaRatio').textContent = `${alpha / rank}x (alpha=${alpha})`;
+
+    drawChart(rank);
+}
+
+// ========================================================================
+// CHART DRAWING
+// ========================================================================
+
+function drawChart(recRank) {
+    const canvas = document.getElementById('tradeoffChart');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.offsetWidth * 2;
+    const H = canvas.height = canvas.offsetHeight * 2;
+    ctx.scale(2, 2);
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const padding = { top: 30, right: 60, bottom: 40, left: 60 };
+    const chartW = w - padding.left - padding.right;
+    const chartH = h - padding.top - padding.bottom;
+
+    const ranks = [1, 2, 4, 8, 16, 32, 64, 128];
+    const quality = [60, 68, 76, 84, 91, 95, 97, 98]; // % of full FT quality
+    const memory = ranks.map(r => r * 0.15); // Relative memory
+    const speed = ranks.map(r => 100 / (1 + r * 0.02)); // Relative speed
+
+    // Grid
+    ctx.strokeStyle = '#ffffff08';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 5; i++) {
+        const y = padding.top + chartH * i / 5;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(w - padding.right, y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#666';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText((100 - i * 20) + '%', padding.left - 8, y + 4);
+    }
+
+    // X-axis labels
+    ranks.forEach((r, i) => {
+        const x = padding.left + (i / (ranks.length - 1)) * chartW;
+        ctx.fillStyle = '#666';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('r=' + r, x, h - padding.bottom + 20);
+    });
+
+    // Draw lines
+    function drawLine(data, color, label) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        data.forEach((v, i) => {
+            const x = padding.left + (i / (data.length - 1)) * chartW;
+            const y = padding.top + ((100 - v) / 100) * chartH;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // Label at end
+        const lastX = padding.left + chartW + 8;
+        const lastY = padding.top + ((100 - data[data.length - 1]) / 100) * chartH;
+        ctx.fillStyle = color;
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, lastX, lastY + 4);
+
+        // Dots
+        data.forEach((v, i) => {
+            const x = padding.left + (i / (data.length - 1)) * chartW;
+            const y = padding.top + ((100 - v) / 100) * chartH;
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+        });
+    }
+
+    drawLine(quality, '#7c4dff', 'Quality');
+    drawLine(speed, '#26de81', 'Speed');
+    drawLine(memory.map(m => Math.min(100, m * 10)), '#ff6b6b', 'Memory');
+
+    // Highlight recommended rank
+    const recIdx = ranks.indexOf(recRank);
+    if (recIdx >= 0) {
+        const x = padding.left + (recIdx / (ranks.length - 1)) * chartW;
+        ctx.strokeStyle = '#f9ca2460';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, padding.top);
+        ctx.lineTo(x, padding.top + chartH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#f9ca24';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Recommended', x, padding.top - 8);
+    }
+}
+
+// Init
+calculate();
+window.addEventListener('resize', () => calculate());
+</script>
+</body>
+</html>

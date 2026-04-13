@@ -1,0 +1,292 @@
+# =============================================================================
+# FRONTIER-PATTERN CONFIGURATION (DOCUMENTATION ONLY — DO NOT ATTEMPT TO TRAIN)
+# =============================================================================
+# Total params: 100B-1.6T | Active params: 10-50B per token
+# Hardware: Thousands of GPUs, weeks of training
+# Purpose: Annotated line-by-line showing what changes vs Small-MoE
+#
+# Calibration points (real 2026 frontier models):
+#   DeepSeek-V4:   1.6T total / 49B active (MoE, hybrid attention)
+#   DeepSeek-V4-Flash: 284B total / 13B active
+#   GLM-5.2:       ~753B total / ~40B active
+#   Kimi K2.6:     ~1T total, 384-expert layout (8 routed + 1 shared per token)
+#
+# This file teaches the real scaling story — every annotation explains
+# WHY a value changes versus Small-MoE, not just WHAT the new value is.
+# =============================================================================
+
+# --- Model Architecture ---
+model:
+  type: "moe"
+  vocab_size: 200000               # CHANGED: 200k (up from 128k). Frontier models use larger
+                                    # vocab to reduce sequence length (cheaper training/inference).
+                                    # Tradeoff: larger embedding table, but amortized over more tokens.
+
+  d_model: 8192                    # CHANGED: 8× wider than Small-MoE (2048→8192).
+                                    # Width scales with total params budget.
+                                    # muP: LR and init scale with d_model ratio.
+
+  n_layers: 96                     # CHANGED: 4× deeper than Small-MoE (24→96).
+                                    # Depth and width both scale; depth is cheaper FLOPs/param.
+
+  n_heads: 64                      # CHANGED: 64 query heads (up from 16).
+  n_kv_heads: 8                    # CHANGED: 8 KV heads (still 8:1 GQA ratio).
+                                    # At frontier, MLA becomes essential — GQA's KV cache
+                                    # is too large at 128k+ context.
+
+  d_head: 128                      # UNCHANGED: 128 per head.
+  intermediate_dim: 22528          # CHANGED: ~8/3 * 8192, rounded to multiple of 256.
+  max_seq_len: 16384               # CHANGED: 16k base (up from 4k). Extended to 128k+ later.
+  dropout: 0.0
+  rope_base: 100000                # CHANGED: Higher base frequency for longer context.
+                                    # DeepSeek-V3 uses 100k base for RoPE.
+
+  attention_type: "hybrid"         # CHANGED: "hybrid" — most layers use compressed/sparse
+                                    # attention (cheap), minority use full attention (expensive).
+                                    # This is DeepSeek-V4's CSA/HCA pattern.
+
+  mla:
+    latent_dim: 2048               # CHANGED: 2048 (up from 512). Still << n_kv_heads * d_head = 1024.
+                                    # Frontier models may use larger latent for quality.
+    rope_dim: 64                   # UNCHANGED: Decoupled RoPE dim stays small.
+
+  weight_tying: false
+
+  # Hybrid attention config (frontier-specific)
+  hybrid_attention:
+    full_attention_layers: [0, 16, 32, 48, 64, 80, 95]
+                                    # Every ~16th layer uses full attention.
+                                    # These are the "focusing" layers — expensive but precise.
+                                    # All other layers use compressed/sparse attention ("skimming").
+    sparse_type: "block_sparse"    # Approximation of CSA. Exact CSA/HCA internals not fully public.
+    sparse_block_size: 256
+    top_k_tokens: 64               # Top-k token selection per query in sparse layers.
+
+  # MoE configuration
+  moe_config:
+    n_shared_experts: 1            # CHANGED: 1 shared expert (Kimi K2.6 pattern).
+                                    # Some frontier models use 1 shared, others use 2.
+    n_routed_experts: 384          # CHANGED: 384 routed experts (Kimi K2.6 uses 384).
+                                    # More experts → finer specialization per parameter.
+                                    # DeepSeek-V4 uses hundreds of experts.
+    top_k: 8                       # UNCHANGED: Route to top-8 per token.
+    expert_intermediate_dim: 2048  # CHANGED: Each expert is larger (more capacity).
+                                    # Total active params: (1 shared + 8 routed) × expert_params
+    bias_update_rate: 0.001
+    capacity_factor: 1.0           # CHANGED: With good balancing, capacity factor → 1.0.
+                                    # No token dropping needed.
+
+  # Multi-Token Prediction
+  mtp_config:
+    depth: 3                       # CHANGED: D=3 (predict 2 extra tokens).
+                                    # Frontier models can afford deeper MTP heads.
+    loss_weight: 0.3
+
+  # Hyper-connections (enabled at frontier scale)
+  use_hyper_connections: true      # CHANGED: Enabled. At 1T+ params, gradient flow
+                                    # through a single residual stream becomes a bottleneck.
+  hyper_connections:
+    n_streams: 4                   # CHANGED: 4 parallel streams.
+                                    # DeepSeek-V4 uses manifold-constrained projection
+                                    # (not fully public). This is the documented approximation.
+
+# --- Optimizer ---
+optimizer:
+  type: "hybrid_muon"             # UNCHANGED: Same optimizer family. Muon scales to 1T+.
+  lr: 0.008                       # CHANGED: Lower LR at larger scale (more params = smaller steps).
+                                    # muP: LR = base_lr * (d_model_base / d_model)^0.5
+
+  weight_decay: 0.1
+
+  muon:
+    momentum: 0.95
+    nesterov: true
+    ns_steps: 5                    # UNCHANGED: 5 NS iterations sufficient at any scale.
+    eps: 1.0e-7
+
+    # MLA Split fix (frontier-critical)
+    mla_split: true                # CHANGED: Enabled. At frontier scale, naively applying Muon
+                                    # across MLA up-projection creates performance gap vs GQA.
+                                    # Fix: split by head, orthogonalize each block independently.
+                                    # (Zhipu, GLM-5)
+
+  adamw:
+    beta1: 0.9
+    beta2: 0.95
+    eps: 1.0e-8
+
+  schedule: "wsd"
+  wsd:
+    warmup_steps: 2000             # CHANGED: Longer warmup for larger model.
+    stable_steps: 200000           # CHANGED: Much longer training.
+    decay_steps: 20000
+    min_lr: 0.0004
+
+  grad_clip_norm: 1.0
+
+# --- Precision ---
+precision:
+  dtype: "bf16"
+  fp8_enabled: true                # CHANGED: FP8 enabled at frontier scale.
+                                    # DeepSeek-V3 validated FP8 training at 671B params.
+                                    # Forward: E4M3 | Gradients: E5M2 | Master weights: BF16
+  fp8:
+    scaling: "per_block_dynamic"   # Per-block dynamic scaling (more stable than per-tensor).
+    block_size: 128
+    # At frontier, FP8 roughly halves compute cost for matmuls.
+
+# --- Data ---
+data:
+  train_data_path: "data/train.bin"
+  val_data_path: "data/val.bin"
+  batch_size: 2                    # CHANGED: Smaller per-GPU batch (model is huge).
+                                    # Gradient accumulation compensates.
+  gradient_accumulation_steps: 64  # Effective batch = 2 * 64 * 1024(gpus) = 131072 tokens
+  max_seq_len: 16384               # Base sequence length
+  num_workers: 8
+
+  mixture:
+    web: 0.45                      # CHANGED: Less raw web, more curated
+    code: 0.20
+    math: 0.15
+    synthetic: 0.10                # CHANGED: More synthetic (carefully curated)
+    curated: 0.10                  # CHANGED: More textbook-quality
+
+  packing:
+    enabled: true
+    document_boundary_masking: true
+
+  decontamination:
+    enabled: true
+    ngram_size: 13
+    overlap_threshold: 0.8
+    benchmarks: ["mmlu", "gpqa", "aime", "humaneval", "gsm8k", "hle", "arc_agi", "frontiermath"]
+
+  # Frontier-scale data (petabytes)
+  total_training_tokens: 15_000_000_000_000  # 15T tokens (DeepSeek-V4 scale)
+  # Chinchilla optimal: ~20 tokens/param → 1.6T * 20 = 32T tokens
+  # Frontier labs "overtrain" smaller models past Chinchilla for inference efficiency.
+
+# --- Training ---
+training:
+  seed: 42
+  max_steps: 500000                # CHANGED: Much longer training.
+  log_every_n_steps: 10
+  eval_every_n_steps: 2500
+  checkpoint_every_n_steps: 5000
+  spike_detection_threshold: 5.0
+
+  sequence_curriculum:
+    - [0, 16384]
+    - [100000, 32768]              # Extend to 32k
+    - [200000, 65536]              # Extend to 64k
+    - [350000, 131072]             # Extend to 128k
+
+  activation_checkpointing:
+    enabled: true
+    checkpoint_every_n_layers: 1   # CHANGED: Checkpoint every layer (memory-critical at scale)
+
+# --- Parallelism ---
+parallelism:
+  dp: 128                          # CHANGED: 128-way data parallel
+  tp: 8                            # CHANGED: 8-way tensor parallel (within NVLink node)
+  ep: 64                           # CHANGED: 64-way expert parallel (384 experts / 64 = 6 per GPU)
+  pp: 16                           # CHANGED: 16 pipeline stages (96 layers / 16 = 6 layers per stage)
+  # Total: 128 × 8 × 16 = 16,384 GPUs (with EP overlaid on DP)
+  # Actual GPU count depends on how EP maps to the DP×TP×PP grid.
+  #
+  # Communication patterns:
+  #   DP: AllReduce for gradients
+  #   TP: AllReduce for activations within a node's NVLink domain
+  #   EP: AllToAll for token dispatch/combine across expert-parallel ranks
+  #   PP: Point-to-point activation transfer between pipeline stages
+
+# --- Mid-Training / Context Extension ---
+mid_training:
+  enabled: true
+  rope_scaling: "yarn"
+  yarn:
+    scale: 8.0                     # CHANGED: 8× extension (16k → 128k)
+    alpha: 1.0
+  steps: 5000
+  data_mixture:
+    web: 0.20
+    code: 0.25
+    math: 0.20
+    curated: 0.20
+    textbook: 0.15
+
+# --- Post-Training (same structure, different scale) ---
+post_training:
+  sft:
+    enabled: true
+    steps: 20000
+    lr: 5.0e-6
+    mask_prompt_tokens: true
+    think_token_enabled: true
+
+  dpo:
+    enabled: true
+    steps: 10000
+    lr: 2.0e-6
+    beta: 0.1
+
+  rlvr:
+    enabled: true
+    algorithm: "grpo"
+    steps: 15000
+    lr: 5.0e-7
+    group_size: 16                 # CHANGED: Larger groups for more stable advantages
+    clip_range: 0.2
+    kl_coeff: 0.0
+
+    dapo:
+      clip_higher: true
+      clip_range_higher: 0.28
+      dynamic_sampling: true
+      token_level_loss: true
+
+    gspo:
+      sequence_level_ratio: true   # CHANGED: Enabled for MoE models.
+                                    # Per-token expert routing differs between rollout
+                                    # and update policies, making per-token ratios noisy.
+
+    rewards:
+      math: "symbolic_match"       # Symbolic math equivalence
+      code: "unit_test"
+      format: "constraint_check"
+
+# --- Evaluation ---
+evaluation:
+  suites:
+    - "mmlu_pro"
+    - "gpqa_diamond"
+    - "aime"
+    - "livecodebench"
+    - "swe_bench"
+    - "hle"
+    - "arc_agi"
+    - "frontiermath"
+  decontamination_check: true
+  cost_aware_metrics: true
+
+# --- Serving ---
+serving:
+  quantization: "fp8"
+  speculative_decoding:
+    enabled: true
+    draft_source: "mtp_heads"
+    num_draft_tokens: 4            # CHANGED: Deeper MTP → more draft tokens
+
+# --- Logging ---
+logging:
+  wandb_enabled: true
+  wandb_project: "sota-llm-forge-frontier"
+  log_everything: true
+
+# --- Checkpointing ---
+checkpointing:
+  save_dir: "checkpoints/frontier"
+  save_optimizer_state: true
+  max_checkpoints_to_keep: 10
+  distributed: true

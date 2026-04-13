@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOTA Training Dashboard</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+.header { padding: 16px 32px; background: linear-gradient(135deg, #1a0a2e, #0a1628); border-bottom: 1px solid #2a2a4a; display: flex; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 22px; background: linear-gradient(90deg, #7c4dff, #448aff, #26de81); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.header .status { display: flex; gap: 12px; align-items: center; }
+.header .badge { padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.badge.running { background: #26de8130; color: #26de81; border: 1px solid #26de8160; }
+.badge.epoch { background: #7c4dff30; color: #7c4dff; border: 1px solid #7c4dff60; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 16px; padding: 16px; max-width: 1600px; margin: 0 auto; }
+
+.card { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; }
+.card h3 { font-size: 14px; color: #7c4dff; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center; }
+.card h3 .metric { font-size: 24px; font-weight: 700; color: #fff; text-transform: none; letter-spacing: 0; }
+
+canvas { width: 100%; border-radius: 8px; }
+
+/* Metrics row */
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 0 16px; }
+.metric-card { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 16px; text-align: center; }
+.metric-card .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.metric-card .value { font-size: 28px; font-weight: 700; margin: 8px 0 4px; }
+.metric-card .change { font-size: 12px; }
+.metric-card .change.positive { color: #26de81; }
+.metric-card .change.negative { color: #ff6b6b; }
+
+/* Model selector */
+.model-select { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.model-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #2a2a4a; background: transparent; color: #888; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+.model-btn.active { background: #7c4dff; border-color: #7c4dff; color: #fff; }
+.model-btn:hover { border-color: #7c4dff; }
+
+/* Full width card */
+.full-width { grid-column: 1 / -1; }
+
+/* Parameter table */
+.param-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.param-table th { text-align: left; padding: 8px 12px; color: #888; border-bottom: 1px solid #2a2a4a; font-weight: 500; }
+.param-table td { padding: 8px 12px; border-bottom: 1px solid #1a1a3a; }
+.param-table tr:hover td { background: #1a1a3a; }
+.param-table .bar { height: 6px; border-radius: 3px; background: #2a2a4a; overflow: hidden; }
+.param-table .bar-fill { height: 100%; border-radius: 3px; }
+
+/* Gradient flow */
+.gradient-flow { display: flex; gap: 4px; align-items: flex-end; height: 80px; }
+.gradient-bar { flex: 1; border-radius: 2px 2px 0 0; transition: height 0.3s; min-width: 3px; }
+
+/* System info */
+.system-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.system-item { background: #1a1a3a; padding: 12px; border-radius: 8px; }
+.system-item .label { font-size: 10px; color: #666; text-transform: uppercase; }
+.system-item .value { font-size: 16px; font-weight: 600; color: #448aff; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>SOTA Training Dashboard</h1>
+        <div style="font-size:11px;color:#666;margin-top:4px;">Real-time training monitoring and visualization</div>
+    </div>
+    <div class="status">
+        <span class="badge running">LIVE</span>
+        <span class="badge epoch" id="epochBadge">Epoch 0/100</span>
+        <span class="badge" id="stepBadge" style="background:#448aff30;color:#448aff;border:1px solid #448aff60;">Step 0</span>
+    </div>
+</div>
+
+<!-- Key Metrics -->
+<div class="metrics">
+    <div class="metric-card">
+        <div class="label">Training Loss</div>
+        <div class="value" id="trainLoss" style="color:#7c4dff;">2.451</div>
+        <div class="change positive" id="trainLossChange">-0.023</div>
+    </div>
+    <div class="metric-card">
+        <div class="label">Validation Loss</div>
+        <div class="value" id="valLoss" style="color:#448aff;">2.687</div>
+        <div class="change positive" id="valLossChange">-0.015</div>
+    </div>
+    <div class="metric-card">
+        <div class="label">Learning Rate</div>
+        <div class="value" id="lr" style="color:#f9ca24;">3.0e-4</div>
+        <div class="change" id="lrChange" style="color:#888;">cosine schedule</div>
+    </div>
+    <div class="metric-card">
+        <div class="label">Tokens/sec</div>
+        <div class="value" id="tps" style="color:#26de81;">45.2K</div>
+        <div class="change positive">+1.2K</div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="grid">
+    <!-- Loss Curve -->
+    <div class="card">
+        <h3>Loss Curve <span class="metric" id="currentLoss">2.451</span></h3>
+        <canvas id="lossChart" height="200"></canvas>
+    </div>
+
+    <!-- Learning Rate Schedule -->
+    <div class="card">
+        <h3>Learning Rate Schedule <span class="metric" id="currentLR">3.0e-4</span></h3>
+        <canvas id="lrChart" height="200"></canvas>
+    </div>
+
+    <!-- Gradient Flow -->
+    <div class="card">
+        <h3>Gradient Flow by Layer</h3>
+        <canvas id="gradChart" height="180"></canvas>
+    </div>
+
+    <!-- Parameter Distribution -->
+    <div class="card">
+        <h3>Parameter Distribution</h3>
+        <canvas id="paramChart" height="180"></canvas>
+    </div>
+
+    <!-- Perplexity -->
+    <div class="card">
+        <h3>Perplexity <span class="metric" id="currentPPL">11.6</span></h3>
+        <canvas id="pplChart" height="180"></canvas>
+    </div>
+
+    <!-- Throughput -->
+    <div class="card">
+        <h3>Training Throughput</h3>
+        <canvas id="throughputChart" height="180"></canvas>
+    </div>
+
+    <!-- Layer-wise Analysis -->
+    <div class="card full-width">
+        <h3>Layer-wise Gradient Magnitudes</h3>
+        <div class="gradient-flow" id="gradientFlow"></div>
+    </div>
+
+    <!-- Model Comparison -->
+    <div class="card full-width">
+        <h3>Model Architecture Comparison</h3>
+        <table class="param-table">
+            <thead>
+                <tr><th>Component</th><th>Parameters</th><th>% of Total</th><th>Shape</th><th>Distribution</th></tr>
+            </thead>
+            <tbody id="paramTable"></tbody>
+        </table>
+    </div>
+
+    <!-- System Info -->
+    <div class="card full-width">
+        <h3>Training Configuration</h3>
+        <div class="system-grid" id="systemGrid"></div>
+    </div>
+</div>
+
+<script>
+// ========================================================================
+// SIMULATED TRAINING DATA
+// ========================================================================
+
+const STEPS = 500;
+const trainLossHistory = [];
+const valLossHistory = [];
+const lrHistory = [];
+const pplHistory = [];
+const throughputHistory = [];
+let currentStep = 0;
+let currentEpoch = 0;
+
+// Generate realistic training curves
+function generateData() {
+    // Training loss: exponential decay with noise
+    const baseLoss = 2.5 * Math.exp(-currentStep * 0.003) + 0.8;
+    const noise = (Math.random() - 0.5) * 0.08;
+    trainLossHistory.push(baseLoss + noise);
+    if (trainLossHistory.length > STEPS) trainLossHistory.shift();
+
+    // Validation loss: slightly higher, less noisy
+    const valBase = baseLoss * 1.1 + 0.2;
+    const valNoise = (Math.random() - 0.5) * 0.04;
+    valLossHistory.push(valBase + valNoise);
+    if (valLossHistory.length > STEPS) valLossHistory.shift();
+
+    // LR: cosine schedule with warmup
+    const warmupSteps = 50;
+    let lr;
+    if (currentStep < warmupSteps) {
+        lr = 3e-4 * currentStep / warmupSteps;
+    } else {
+        const progress = (currentStep - warmupSteps) / (1000 - warmupSteps);
+        lr = 3e-4 * 0.5 * (1 + Math.cos(Math.PI * progress));
+    }
+    lrHistory.push(lr);
+    if (lrHistory.length > STEPS) lrHistory.shift();
+
+    // Perplexity: exp(loss)
+    pplHistory.push(Math.exp(baseLoss + noise));
+    if (pplHistory.length > STEPS) pplHistory.shift();
+
+    // Throughput: somewhat stable with variance
+    throughputHistory.push(45000 + Math.random() * 5000 - 2500);
+    if (throughputHistory.length > STEPS) throughputHistory.shift();
+
+    currentStep++;
+    if (currentStep % 100 === 0) currentEpoch++;
+}
+
+// Initialize with some history
+for (let i = 0; i < 200; i++) generateData();
+
+// ========================================================================
+// CHART DRAWING (Canvas-based, no dependencies)
+// ========================================================================
+
+function drawLineChart(canvasId, data, color, yLabel, options = {}) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.offsetWidth * 2;
+    const H = canvas.height = canvas.offsetHeight * 2;
+    ctx.scale(2, 2);
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+
+    ctx.clearRect(0, 0, w, h);
+
+    if (data.length < 2) return;
+
+    const padding = { top: 20, right: 20, bottom: 30, left: 50 };
+    const chartW = w - padding.left - padding.right;
+    const chartH = h - padding.top - padding.bottom;
+
+    const minVal = options.min ?? Math.min(...data) * 0.95;
+    const maxVal = options.max ?? Math.max(...data) * 1.05;
+    const range = maxVal - minVal || 1;
+
+    // Grid lines
+    ctx.strokeStyle = '#ffffff08';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = padding.top + chartH * i / 4;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(w - padding.right, y);
+        ctx.stroke();
+
+        // Y-axis labels
+        const val = maxVal - (range * i / 4);
+        ctx.fillStyle = '#666';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(val.toFixed(options.decimals ?? 2), padding.left - 8, y + 4);
+    }
+
+    // Draw line
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+
+    for (let i = 0; i < data.length; i++) {
+        const x = padding.left + (i / (data.length - 1)) * chartW;
+        const y = padding.top + ((maxVal - data[i]) / range) * chartH;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Gradient fill
+    const gradient = ctx.createLinearGradient(0, padding.top, 0, h - padding.bottom);
+    gradient.addColorStop(0, color + '30');
+    gradient.addColorStop(1, color + '05');
+    ctx.lineTo(padding.left + chartW, padding.top + chartH);
+    ctx.lineTo(padding.left, padding.top + chartH);
+    ctx.closePath();
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // Moving average (smoother line)
+    if (data.length > 20) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        const window = 20;
+        for (let i = window; i < data.length; i++) {
+            let sum = 0;
+            for (let j = i - window; j < i; j++) sum += data[j];
+            const avg = sum / window;
+            const x = padding.left + (i / (data.length - 1)) * chartW;
+            const y = padding.top + ((maxVal - avg) / range) * chartH;
+            if (i === window) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+
+    // Latest value indicator
+    const lastVal = data[data.length - 1];
+    const lastX = padding.left + chartW;
+    const lastY = padding.top + ((maxVal - lastVal) / range) * chartH;
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 8, 0, Math.PI * 2);
+    ctx.strokeStyle = color + '40';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+}
+
+function drawBarChart(canvasId, data, colors) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.offsetWidth * 2;
+    const H = canvas.height = canvas.offsetHeight * 2;
+    ctx.scale(2, 2);
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const padding = { top: 20, right: 20, bottom: 30, left: 50 };
+    const chartW = w - padding.left - padding.right;
+    const chartH = h - padding.top - padding.bottom;
+    const maxVal = Math.max(...data.map(d => d.value)) * 1.1;
+    const barW = chartW / data.length * 0.7;
+    const gap = chartW / data.length * 0.3;
+
+    data.forEach((d, i) => {
+        const x = padding.left + i * (barW + gap) + gap / 2;
+        const barH = (d.value / maxVal) * chartH;
+        const y = padding.top + chartH - barH;
+
+        // Bar
+        const grad = ctx.createLinearGradient(x, y, x, y + barH);
+        grad.addColorStop(0, colors[i % colors.length]);
+        grad.addColorStop(1, colors[i % colors.length] + '60');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.roundRect(x, y, barW, barH, [4, 4, 0, 0]);
+        ctx.fill();
+
+        // Label
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(d.label, x + barW / 2, h - padding.bottom + 14);
+
+        // Value
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText(d.value.toFixed(1), x + barW / 2, y - 6);
+    });
+}
+
+// ========================================================================
+// GRADIENT FLOW VISUALIZATION
+// ========================================================================
+
+function updateGradientFlow() {
+    const container = document.getElementById('gradientFlow');
+    const layers = 24;
+    container.innerHTML = '';
+
+    for (let i = 0; i < layers; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'gradient-bar';
+        const magnitude = Math.exp(-i * 0.15) * (0.8 + Math.random() * 0.4);
+        const height = Math.max(4, magnitude * 80);
+        const hue = 260 - magnitude * 100;
+        bar.style.height = height + 'px';
+        bar.style.background = `hsl(${hue}, 70%, 55%)`;
+        bar.title = `Layer ${i}: ${magnitude.toFixed(4)}`;
+        container.appendChild(bar);
+    }
+}
+
+// ========================================================================
+// PARAMETER TABLE
+// ========================================================================
+
+function updateParamTable() {
+    const components = [
+        { name: 'Token Embedding', params: 16384000, shape: '32000 × 512', color: '#7c4dff' },
+        { name: 'Time Mixing (WKV)', params: 3145728, shape: '512 × 512 × 12', color: '#4ecdc4' },
+        { name: 'Channel Mixing', params: 5242880, shape: '512 × 2048 × 12', color: '#45b7d1' },
+        { name: 'LoRA Time Decay', params: 393216, shape: '512 × 64 × 12', color: '#f9ca24' },
+        { name: 'Layer Norms', params: 24576, shape: '512 × 2 × 24', color: '#26de81' },
+        { name: 'Output Head', params: 16384000, shape: '512 × 32000', color: '#ff6b6b' },
+    ];
+
+    const total = components.reduce((s, c) => s + c.params, 0);
+    const tbody = document.getElementById('paramTable');
+    tbody.innerHTML = '';
+
+    components.forEach(c => {
+        const pct = (c.params / total * 100).toFixed(1);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><span style="color:${c.color};">●</span> ${c.name}</td>
+            <td>${(c.params / 1e6).toFixed(2)}M</td>
+            <td>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="bar" style="width:120px;">
+                        <div class="bar-fill" style="width:${pct}%;background:${c.color};"></div>
+                    </div>
+                    <span style="font-size:11px;color:#888;">${pct}%</span>
+                </div>
+            </td>
+            <td style="color:#888;font-family:monospace;font-size:11px;">${c.shape}</td>
+            <td><canvas width="100" height="30" id="dist_${c.name.replace(/\s/g,'')}"></canvas></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function drawMiniDist(canvasId, color) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = 100, h = 30;
+    ctx.clearRect(0, 0, w, h);
+
+    // Mini histogram (normal distribution)
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (let i = 0; i < w; i++) {
+        const x = (i - w/2) / (w/4);
+        const y = Math.exp(-x * x / 2) * h * 0.85;
+        ctx.lineTo(i, h - y);
+    }
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    ctx.fillStyle = color + '40';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (let i = 0; i < w; i++) {
+        const x = (i - w/2) / (w/4);
+        const y = Math.exp(-x * x / 2) * h * 0.85;
+        ctx.lineTo(i, h - y);
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+}
+
+// ========================================================================
+// SYSTEM INFO
+// ========================================================================
+
+function updateSystemInfo() {
+    const config = [
+        { label: 'Model', value: 'RWKV-v6-512M' },
+        { label: 'Architecture', value: '12L, 8H, 512d' },
+        { label: 'Dataset', value: 'RedPajama-1T' },
+        { label: 'Batch Size', value: '256 tokens' },
+        { label: 'Sequence Length', value: '2048' },
+        { label: 'Optimizer', value: 'AdamW (β1=0.9, β2=0.999)' },
+        { label: 'Weight Decay', value: '0.1' },
+        { label: 'Warmup Steps', value: '50' },
+        { label: 'Max LR', value: '3.0e-4' },
+        { label: 'Schedule', value: 'Cosine with warmup' },
+        { label: 'Gradient Clip', value: '1.0' },
+        { label: 'Mixed Precision', value: 'BF16' },
+    ];
+
+    const grid = document.getElementById('systemGrid');
+    grid.innerHTML = '';
+    config.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'system-item';
+        div.innerHTML = `<div class="label">${c.label}</div><div class="value">${c.value}</div>`;
+        grid.appendChild(div);
+    });
+}
+
+// ========================================================================
+// UPDATE LOOP
+// ========================================================================
+
+function update() {
+    generateData();
+
+    const lastTrain = trainLossHistory[trainLossHistory.length - 1];
+    const prevTrain = trainLossHistory[trainLossHistory.length - 2] || lastTrain;
+    const lastVal = valLossHistory[valLossHistory.length - 1];
+    const lastLR = lrHistory[lrHistory.length - 1];
+    const lastPPL = pplHistory[pplHistory.length - 1];
+    const lastTPS = throughputHistory[throughputHistory.length - 1];
+
+    // Update metrics
+    document.getElementById('trainLoss').textContent = lastTrain.toFixed(3);
+    document.getElementById('valLoss').textContent = lastVal.toFixed(3);
+    document.getElementById('lr').textContent = lastLR.toExponential(1);
+    document.getElementById('tps').textContent = (lastTPS / 1000).toFixed(1) + 'K';
+    document.getElementById('currentLoss').textContent = lastTrain.toFixed(3);
+    document.getElementById('currentLR').textContent = lastLR.toExponential(1);
+    document.getElementById('currentPPL').textContent = lastPPL.toFixed(1);
+
+    const trainChange = lastTrain - prevTrain;
+    const changeEl = document.getElementById('trainLossChange');
+    changeEl.textContent = trainChange.toFixed(3);
+    changeEl.className = 'change ' + (trainChange < 0 ? 'positive' : 'negative');
+
+    // Update badges
+    document.getElementById('epochBadge').textContent = `Epoch ${currentEpoch}/100`;
+    document.getElementById('stepBadge').textContent = `Step ${currentStep}`;
+
+    // Draw charts
+    drawLineChart('lossChart', trainLossHistory, '#7c4dff', 'Loss');
+    drawLineChart('lrChart', lrHistory, '#f9ca24', 'LR', { min: 0, decimals: 5 });
+    drawLineChart('pplChart', pplHistory, '#448aff', 'PPL', { decimals: 1 });
+    drawLineChart('throughputChart', throughputHistory, '#26de81', 'tok/s', { min: 40000 });
+
+    // Gradient flow (update every 5 steps)
+    if (currentStep % 5 === 0) {
+        updateGradientFlow();
+    }
+
+    // Draw param distribution charts
+    const colors = ['#7c4dff', '#4ecdc4', '#45b7d1', '#f9ca24', '#26de81', '#ff6b6b'];
+    ['dist_TokenEmbedding', 'dist_TimeMixingWKV', 'dist_ChannelMixing', 'dist_LoRATimeDecay', 'dist_LayerNorms', 'dist_OutputHead'].forEach((id, i) => {
+        drawMiniDist(id, colors[i]);
+    });
+}
+
+// Initialize
+updateParamTable();
+updateSystemInfo();
+update();
+setInterval(update, 1500);
+</script>
+</body>
+</html>

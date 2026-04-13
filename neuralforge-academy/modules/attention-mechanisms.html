@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attention Mechanisms — NeuralForge Academy</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; overflow-x: hidden; }
+
+/* Navigation */
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(10,10,26,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid #2a2a4a; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+.nav .back { color: #7c4dff; text-decoration: none; font-size: 14px; }
+.nav .back:hover { text-decoration: underline; }
+.nav .title { font-size: 16px; font-weight: 600; }
+.nav .progress { font-size: 12px; color: #888; }
+
+/* Main content */
+.main { margin-top: 60px; }
+
+/* Hero section */
+.hero { height: 50vh; position: relative; display: flex; align-items: center; justify-content: center; text-align: center; }
+.hero canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.hero-content { position: relative; z-index: 2; }
+.hero-content h1 { font-size: 42px; background: linear-gradient(90deg, #7c4dff, #448aff, #26de81); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 12px; }
+.hero-content p { font-size: 18px; color: #aaa; max-width: 600px; margin: 0 auto; }
+
+/* Section layout */
+.section { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+.section h2 { font-size: 28px; margin-bottom: 24px; color: #7c4dff; }
+.section h3 { font-size: 20px; margin: 24px 0 12px; color: #448aff; }
+
+/* Interactive demo container */
+.demo-container { background: #111128; border: 1px solid #2a2a4a; border-radius: 16px; padding: 24px; margin-bottom: 32px; position: relative; overflow: hidden; }
+.demo-container h3 { margin-top: 0; }
+.demo-canvas { width: 100%; height: 400px; border-radius: 8px; background: #08081a; }
+
+/* Controls */
+.controls { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; align-items: center; }
+.controls label { font-size: 13px; color: #888; }
+.controls input[type="range"] { accent-color: #7c4dff; }
+.controls select, .controls button { background: #1a1a3a; color: #e0e0e0; border: 1px solid #2a2a4a; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.controls button:hover { border-color: #7c4dff; }
+.controls button.active { background: #7c4dff; border-color: #7c4dff; color: white; }
+
+/* Attention heatmap */
+.heatmap { display: grid; gap: 2px; margin: 16px 0; }
+.heatmap-cell { aspect-ratio: 1; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; cursor: pointer; transition: transform 0.2s; }
+.heatmap-cell:hover { transform: scale(1.1); z-index: 2; }
+
+/* Concept cards */
+.concept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin: 24px 0; }
+.concept-card { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; transition: all 0.3s; }
+.concept-card:hover { border-color: #7c4dff; transform: translateY(-2px); }
+.concept-card h4 { color: #7c4dff; margin-bottom: 8px; font-size: 16px; }
+.concept-card p { font-size: 13px; color: #aaa; line-height: 1.6; }
+.concept-card .formula { background: #0a0a1a; border-radius: 6px; padding: 12px; margin: 12px 0; font-family: 'Fira Code', monospace; font-size: 13px; color: #26de81; text-align: center; }
+
+/* Code playground */
+.playground { background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 8px; overflow: hidden; margin: 16px 0; }
+.playground-header { background: #1a1a3a; padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; }
+.playground-header .dots { display: flex; gap: 6px; }
+.playground-header .dot { width: 10px; height: 10px; border-radius: 50%; }
+.playground-header .dot.r { background: #ff5f57; }
+.playground-header .dot.y { background: #ffbd2e; }
+.playground-header .dot.g { background: #28c840; }
+.playground-code { padding: 16px; font-family: 'Fira Code', monospace; font-size: 13px; line-height: 1.7; overflow-x: auto; color: #ccc; }
+.playground-code .kw { color: #c678dd; }
+.playground-code .fn { color: #61afef; }
+.playground-code .str { color: #98c379; }
+.playground-code .num { color: #d19a66; }
+.playground-code .cmt { color: #5c6370; font-style: italic; }
+.playground-output { background: #111128; padding: 16px; border-top: 1px solid #2a2a4a; font-family: monospace; font-size: 12px; color: #26de81; min-height: 60px; }
+
+/* Quiz */
+.quiz { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; margin: 24px 0; }
+.quiz h3 { color: #f9ca24; margin-bottom: 16px; }
+.quiz-question { margin-bottom: 16px; }
+.quiz-question p { margin-bottom: 12px; font-size: 15px; }
+.quiz-option { padding: 12px 16px; background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; font-size: 14px; }
+.quiz-option:hover { border-color: #7c4dff; }
+.quiz-option.correct { border-color: #26de81; background: #26de8115; }
+.quiz-option.wrong { border-color: #ff6b6b; background: #ff6b6b15; }
+.quiz-feedback { font-size: 13px; margin-top: 8px; padding: 10px; border-radius: 6px; display: none; }
+.quiz-feedback.show { display: block; }
+
+/* Level tabs */
+.level-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.level-tab { padding: 8px 16px; border-radius: 6px; border: 1px solid #2a2a4a; background: transparent; color: #888; cursor: pointer; font-size: 13px; }
+.level-tab.active { background: #7c4dff; border-color: #7c4dff; color: white; }
+
+/* Animations */
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@keyframes flow { 0% { stroke-dashoffset: 100; } 100% { stroke-dashoffset: 0; } }
+.pulse { animation: pulse 2s infinite; }
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+    <a href="../index.html" class="back">← Back to Academy</a>
+    <span class="title">Module 1.4: Attention Mechanisms</span>
+    <span class="progress">Track 1 · LLM Foundations</span>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+    <canvas id="heroCanvas"></canvas>
+    <div class="hero-content">
+        <h1>Attention Mechanisms</h1>
+        <p>The core innovation behind Transformers — understand how models "pay attention" to relevant information</p>
+    </div>
+</div>
+
+<div class="main">
+    <!-- Level selection -->
+    <div class="section">
+        <div class="level-tabs">
+            <button class="level-tab active" onclick="setLevel('beginner')">Beginner</button>
+            <button class="level-tab" onclick="setLevel('intermediate')">Intermediate</button>
+            <button class="level-tab" onclick="setLevel('advanced')">Advanced</button>
+            <button class="level-tab" onclick="setLevel('expert')">Expert</button>
+        </div>
+
+        <!-- Beginner explanation -->
+        <div id="level-beginner">
+            <h2>What is Attention?</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>The Restaurant Analogy</h4>
+                    <p>Imagine you're at a noisy restaurant. Your brain "attends" to the person speaking to you, filtering out other conversations. Attention in AI works similarly — it learns which parts of the input to focus on.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Spotlight, Not Camera</h4>
+                    <p>A camera captures everything equally. A spotlight highlights what matters. Attention is like a spotlight — it gives more weight to important words and less to irrelevant ones.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Reading Comprehension</h4>
+                    <p>When answering "What color is the car?", your eyes jump to "car" in the text. Attention lets models do the same — dynamically focus on relevant parts of the input.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Intermediate explanation -->
+        <div id="level-intermediate" style="display:none;">
+            <h2>How Attention Works</h2>
+            <div class="concept-card" style="max-width: 800px;">
+                <h4>Query, Key, Value</h4>
+                <p>Attention uses three vectors for each token:</p>
+                <p><strong>Query (Q):</strong> "What am I looking for?"</p>
+                <p><strong>Key (K):</strong> "What do I contain?"</p>
+                <p><strong>Value (V):</strong> "What information do I provide?"</p>
+                <div class="formula">Attention(Q, K, V) = softmax(Q · K<sup>T</sup> / √d) · V</div>
+                <p>The dot product Q·K measures similarity. Softmax converts to probabilities. The weighted sum of Values produces the output.</p>
+            </div>
+        </div>
+
+        <!-- Advanced explanation -->
+        <div id="level-advanced" style="display:none;">
+            <h2>Multi-Head Attention & Complexity</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>Multi-Head Attention</h4>
+                    <p>Instead of one attention, run h parallel "heads" with different learned projections. Each head can attend to different types of relationships (syntactic, semantic, positional).</p>
+                    <div class="formula">MultiHead(Q,K,V) = Concat(head₁,...,headₕ) · W<sub>O</sub></div>
+                </div>
+                <div class="concept-card">
+                    <h4>Complexity Analysis</h4>
+                    <p><strong>Time:</strong> O(n²·d) — quadratic in sequence length</p>
+                    <p><strong>Space:</strong> O(n²) for attention matrix</p>
+                    <p>This quadratic cost is the main bottleneck for long sequences, motivating efficient attention variants like FlashAttention, Linear Attention, and sparse attention.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expert explanation -->
+        <div id="level-expert" style="display:none;">
+            <h2>Attention Variants & Research Frontiers</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>Efficient Attention</h4>
+                    <p><strong>FlashAttention:</strong> Tiled exact attention, O(N) memory</p>
+                    <p><strong>Linear Attention:</strong> O(N) via kernel trick</p>
+                    <p><strong>Sparse Attention:</strong> Local + global patterns</p>
+                    <p><strong>Multi-Query:</strong> Shared K,V across heads</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Attention is Not Enough</h4>
+                    <p>Recent work shows attention heads have specialized roles: induction heads (in-context learning), retrieval heads (fact lookup), safety heads (refusal). Understanding head roles is key to interpretability.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Self-Attention Demo -->
+    <div class="section">
+        <div class="demo-container">
+            <h3>Interactive Self-Attention</h3>
+            <p style="color:#888;font-size:14px;margin-bottom:16px;">Watch how each token attends to other tokens. Brighter = higher attention weight.</p>
+            <canvas id="attentionCanvas" class="demo-canvas"></canvas>
+            <div class="controls">
+                <label>Sentence:</label>
+                <select id="sentenceSelect" onchange="updateSentence()">
+                    <option value="The cat sat on the mat">The cat sat on the mat</option>
+                    <option value="Attention is all you need">Attention is all you need</option>
+                    <option value="I love learning about AI">I love learning about AI</option>
+                </select>
+                <label>Head:</label>
+                <select id="headSelect" onchange="drawAttention()">
+                    <option value="0">Head 0 (Syntactic)</option>
+                    <option value="1">Head 1 (Semantic)</option>
+                    <option value="2">Head 2 (Positional)</option>
+                </select>
+                <button onclick="animateAttention()" class="active">Animate</button>
+            </div>
+            <!-- Attention heatmap -->
+            <div id="heatmapContainer" style="margin-top:16px;"></div>
+        </div>
+    </div>
+
+    <!-- Q·K·V Interactive -->
+    <div class="section">
+        <div class="demo-container">
+            <h3>Query · Key · Value Pipeline</h3>
+            <p style="color:#888;font-size:14px;margin-bottom:16px;">See how Q, K, V are computed and combined step by step.</p>
+            <canvas id="qkvCanvas" class="demo-canvas"></canvas>
+            <div class="controls">
+                <button onclick="stepQKV()" class="active">Step Through</button>
+                <button onclick="resetQKV()">Reset</button>
+                <label>Token:</label>
+                <select id="tokenSelect" onchange="drawQKV()">
+                    <option value="0">The</option>
+                    <option value="1">cat</option>
+                    <option value="2">sat</option>
+                    <option value="3">on</option>
+                    <option value="4">the</option>
+                    <option value="5">mat</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Code Playground -->
+    <div class="section">
+        <h2>Code Playground</h2>
+        <div class="playground">
+            <div class="playground-header">
+                <div class="dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
+                <span style="font-size:12px;color:#888;">self_attention.py</span>
+            </div>
+            <div class="playground-code">
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">self_attention</span>(X, W_Q, W_K, W_V):
+    <span class="str">"""Compute self-attention for input sequence X."""</span>
+    <span class="cmt"># Project input to Q, K, V</span>
+    Q = X @ W_Q  <span class="cmt"># (seq_len, d_head)</span>
+    K = X @ W_K
+    V = X @ W_V
+
+    <span class="cmt"># Compute attention scores</span>
+    d_k = K.shape[-<span class="num">1</span>]
+    scores = Q @ K.T / np.sqrt(d_k)  <span class="cmt"># (seq_len, seq_len)</span>
+
+    <span class="cmt"># Softmax (numerically stable)</span>
+    exp_scores = np.exp(scores - np.max(scores, axis=-<span class="num">1</span>, keepdims=<span class="num">True</span>))
+    weights = exp_scores / exp_scores.sum(axis=-<span class="num">1</span>, keepdims=<span class="num">True</span>)
+
+    <span class="cmt"># Weighted sum of values</span>
+    output = weights @ V  <span class="cmt"># (seq_len, d_head)</span>
+    <span class="kw">return</span> output, weights
+
+<span class="cmt"># Example: 6 tokens, 4-dimensional embeddings</span>
+X = np.random.randn(<span class="num">6</span>, <span class="num">8</span>)
+W_Q = np.random.randn(<span class="num">8</span>, <span class="num">4</span>)
+W_K = np.random.randn(<span class="num">8</span>, <span class="num">4</span>)
+W_V = np.random.randn(<span class="num">8</span>, <span class="num">4</span>)
+
+output, attn_weights = self_attention(X, W_Q, W_K, W_V)
+<span class="fn">print</span>(<span class="str">"Attention weights shape:"</span>, attn_weights.shape)
+<span class="fn">print</span>(<span class="str">"Output shape:"</span>, output.shape)
+            </div>
+            <div class="playground-output">
+> Attention weights shape: (6, 6)<br>
+> Output shape: (6, 4)
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz -->
+    <div class="section">
+        <div class="quiz">
+            <h3>Test Your Understanding</h3>
+            <div class="quiz-question">
+                <p>1. What does the softmax in attention compute?</p>
+                <div class="quiz-option" onclick="checkQuiz(this, false)">The exact values of each token</div>
+                <div class="quiz-option" onclick="checkQuiz(this, true)">A probability distribution over how much to attend to each token</div>
+                <div class="quiz-option" onclick="checkQuiz(this, false)">The gradient of the loss function</div>
+                <div class="quiz-option" onclick="checkQuiz(this, false)">The position of each token in the sequence</div>
+                <div class="quiz-feedback" id="fb1">Correct! Softmax converts raw attention scores into a probability distribution that sums to 1, telling the model how much to "attend" to each token.</div>
+            </div>
+            <div class="quiz-question">
+                <p>2. Why do we divide by √d in the attention formula?</p>
+                <div class="quiz-option" onclick="checkQuiz(this, false)">To make the computation faster</div>
+                <div class="quiz-option" onclick="checkQuiz(this, false)">To reduce the number of parameters</div>
+                <div class="quiz-option" onclick="checkQuiz(this, true)">To prevent softmax from saturating with large dot products</div>
+                <div class="quiz-option" onclick="checkQuiz(this, false)">To make the output match the input dimension</div>
+                <div class="quiz-feedback" id="fb2">Correct! Without scaling, large dot products push softmax into regions with tiny gradients, making training unstable. Dividing by √d keeps the variance of dot products at 1.</div>
+            </div>
+            <div class="quiz-question">
+                <p>3. What is the main advantage of multi-head attention over single-head attention?</p>
+                <div class="quiz-option" onclick="checkQuiz(this, false)">It uses less memory</div>
+                <div class="quiz-option" onclick="checkQuiz(this, true)">Different heads can learn to attend to different types of relationships</div>
+                <div class="quiz-option" onclick="checkQuiz(this, false)">It makes the model smaller</div>
+                <div class="quiz-option" onclick="checkQuiz(this, false)">It removes the need for softmax</div>
+                <div class="quiz-feedback" id="fb3">Correct! Each head has its own Q, K, V projections, allowing it to specialize in different patterns — some heads attend locally, some attend to specific syntactic roles, some capture long-range dependencies.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation to next module -->
+    <div class="section" style="text-align:center; padding-bottom: 60px;">
+        <p style="color:#888; margin-bottom: 16px;">Next Module</p>
+        <a href="loss-landscape.html" style="color: #7c4dff; font-size: 18px; text-decoration: none;">Module 1.6: Loss Landscape Navigation →</a>
+    </div>
+</div>
+
+<script>
+// ========================================================================
+// HERO CANVAS — Animated Attention Particles
+// ========================================================================
+const heroCanvas = document.getElementById('heroCanvas');
+const heroCtx = heroCanvas.getContext('2d');
+let heroW, heroH;
+const particles = [];
+
+function resizeHero() {
+    heroW = heroCanvas.width = heroCanvas.offsetWidth * 2;
+    heroH = heroCanvas.height = heroCanvas.offsetHeight * 2;
+    heroCtx.scale(2, 2);
+}
+resizeHero();
+window.addEventListener('resize', resizeHero);
+
+// Create particles
+for (let i = 0; i < 80; i++) {
+    particles.push({
+        x: Math.random() * heroW / 2,
+        y: Math.random() * heroH / 2,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        r: 2 + Math.random() * 3,
+        hue: 260 + Math.random() * 60,
+    });
+}
+
+function animateHero() {
+    heroCtx.clearRect(0, 0, heroW / 2, heroH / 2);
+
+    // Draw connections between nearby particles
+    for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+            const dx = particles[i].x - particles[j].x;
+            const dy = particles[i].y - particles[j].y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 80) {
+                heroCtx.beginPath();
+                heroCtx.moveTo(particles[i].x, particles[i].y);
+                heroCtx.lineTo(particles[j].x, particles[j].y);
+                heroCtx.strokeStyle = `rgba(124,77,255,${(1 - dist / 80) * 0.3})`;
+                heroCtx.lineWidth = 0.5;
+                heroCtx.stroke();
+            }
+        }
+    }
+
+    // Update and draw particles
+    particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > heroW / 2) p.vx *= -1;
+        if (p.y < 0 || p.y > heroH / 2) p.vy *= -1;
+
+        heroCtx.beginPath();
+        heroCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        heroCtx.fillStyle = `hsl(${p.hue}, 70%, 60%)`;
+        heroCtx.fill();
+    });
+
+    requestAnimationFrame(animateHero);
+}
+animateHero();
+
+// ========================================================================
+// LEVEL SWITCHING
+// ========================================================================
+function setLevel(level) {
+    document.querySelectorAll('.level-tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    ['beginner', 'intermediate', 'advanced', 'expert'].forEach(l => {
+        document.getElementById('level-' + l).style.display = l === level ? 'block' : 'none';
+    });
+}
+
+// ========================================================================
+// SELF-ATTENTION VISUALIZATION
+// ========================================================================
+const sentences = {
+    'The cat sat on the mat': ['The', 'cat', 'sat', 'on', 'the', 'mat'],
+    'Attention is all you need': ['Attention', 'is', 'all', 'you', 'need'],
+    'I love learning about AI': ['I', 'love', 'learning', 'about', 'AI'],
+};
+
+let currentTokens = sentences['The cat sat on the mat'];
+let attentionWeights = null;
+
+// Generate synthetic attention patterns
+function generateAttention(head) {
+    const n = currentTokens.length;
+    const weights = [];
+
+    for (let i = 0; i < n; i++) {
+        const row = new Array(n).fill(0);
+        if (head === 0) {
+            // Syntactic: attend to adjacent tokens and self
+            row[i] = 0.3;
+            if (i > 0) row[i - 1] = 0.25;
+            if (i < n - 1) row[i + 1] = 0.25;
+            // Distribute remaining
+            const rest = 0.2 / (n - 3);
+            for (let j = 0; j < n; j++) {
+                if (j !== i && j !== i - 1 && j !== i + 1) row[j] = rest;
+            }
+        } else if (head === 1) {
+            // Semantic: attend to content words
+            const contentWords = currentTokens.map((t, idx) => {
+                return !['the', 'a', 'an', 'is', 'on', 'of', 'in', 'to', 'I', 'you'].includes(t) ? idx : -1;
+            }).filter(i => i >= 0);
+            const cw = contentWords.length || 1;
+            contentWords.forEach(idx => { row[idx] = 0.6 / cw; });
+            // Self attention
+            row[i] = 0.4;
+        } else {
+            // Positional: attend to nearby positions with decay
+            let sum = 0;
+            for (let j = 0; j < n; j++) {
+                row[j] = Math.exp(-Math.abs(i - j) * 0.5);
+                sum += row[j];
+            }
+            for (let j = 0; j < n; j++) row[j] /= sum;
+        }
+
+        // Normalize to sum to 1
+        const total = row.reduce((s, v) => s + v, 0);
+        weights.push(row.map(v => v / total));
+    }
+
+    return weights;
+}
+
+function drawAttention() {
+    const canvas = document.getElementById('attentionCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.offsetWidth * 2;
+    const H = canvas.height = canvas.offsetHeight * 2;
+    ctx.setTransform(2, 0, 0, 2, 0, 0);
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const head = parseInt(document.getElementById('headSelect').value);
+    attentionWeights = generateAttention(head);
+    const n = currentTokens.length;
+
+    const padding = 60;
+    const cellW = Math.min(60, (w - padding * 2) / n);
+    const cellH = Math.min(40, (h - padding * 2 - 40) / n);
+    const startX = (w - cellW * n) / 2;
+    const startY = padding + 20;
+
+    // Draw column headers (Keys)
+    ctx.font = '12px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    currentTokens.forEach((token, j) => {
+        const x = startX + j * cellW + cellW / 2;
+        ctx.fillStyle = '#888';
+        ctx.fillText(token, x, startY - 8);
+    });
+
+    // Draw row headers (Queries)
+    ctx.textAlign = 'right';
+    currentTokens.forEach((token, i) => {
+        const y = startY + i * cellH + cellH / 2 + 4;
+        ctx.fillStyle = '#888';
+        ctx.fillText(token, startX - 8, y);
+    });
+
+    // Draw attention matrix
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+            const x = startX + j * cellW;
+            const y = startY + i * cellH;
+            const weight = attentionWeights[i][j];
+
+            // Color based on weight
+            const hue = 260 - weight * 200; // Purple (low) to green (high)
+            const light = 15 + weight * 50;
+            ctx.fillStyle = `hsl(${hue}, 70%, ${light}%)`;
+            ctx.fillRect(x + 1, y + 1, cellW - 2, cellH - 2);
+
+            // Weight value
+            if (cellW > 30) {
+                ctx.fillStyle = weight > 0.3 ? '#fff' : '#666';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(weight.toFixed(2), x + cellW / 2, y + cellH / 2 + 4);
+            }
+        }
+    }
+
+    // Draw labels
+    ctx.fillStyle = '#7c4dff';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Key →', startX + (cellW * n) / 2, h - 10);
+
+    ctx.save();
+    ctx.translate(15, startY + (cellH * n) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Query →', 0, 0);
+    ctx.restore();
+}
+
+function updateSentence() {
+    const sel = document.getElementById('sentenceSelect').value;
+    currentTokens = sentences[sel];
+    drawAttention();
+}
+
+function animateAttention() {
+    // Animate attention weights growing
+    const canvas = document.getElementById('attentionCanvas');
+    const ctx = canvas.getContext('2d');
+    let progress = 0;
+
+    function frame() {
+        progress += 0.02;
+        if (progress > 1) progress = 1;
+
+        const head = parseInt(document.getElementById('headSelect').value);
+        attentionWeights = generateAttention(head);
+        const n = currentTokens.length;
+
+        const w = canvas.offsetWidth;
+        const h = canvas.offsetHeight;
+        const padding = 60;
+        const cellW = Math.min(60, (w - padding * 2) / n);
+        const cellH = Math.min(40, (h - padding * 2 - 40) / n);
+        const startX = (w - cellW * n) / 2;
+        const startY = padding + 20;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Draw headers
+        ctx.font = '12px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        currentTokens.forEach((token, j) => {
+            ctx.fillStyle = '#888';
+            ctx.fillText(token, startX + j * cellW + cellW / 2, startY - 8);
+        });
+        ctx.textAlign = 'right';
+        currentTokens.forEach((token, i) => {
+            ctx.fillStyle = '#888';
+            ctx.fillText(token, startX - 8, startY + i * cellH + cellH / 2 + 4);
+        });
+
+        // Draw with animation
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n; j++) {
+                const x = startX + j * cellW;
+                const y = startY + i * cellH;
+                const weight = attentionWeights[i][j] * Math.min(1, progress * (1 + Math.random() * 0.3));
+
+                const hue = 260 - weight * 200;
+                const light = 15 + weight * 50;
+                ctx.fillStyle = `hsl(${hue}, 70%, ${light}%)`;
+                ctx.fillRect(x + 1, y + 1, cellW - 2, cellH - 2);
+            }
+        }
+
+        if (progress < 1) requestAnimationFrame(frame);
+    }
+    frame();
+}
+
+// Initial draw
+setTimeout(drawAttention, 100);
+
+// ========================================================================
+// Q·K·V PIPELINE VISUALIZATION
+// ========================================================================
+let qkvStep = 0;
+const qkvStages = ['Input Embeddings', 'Project to Q', 'Project to K', 'Project to V', 'Q·K^T Scores', 'Softmax Weights', 'Weighted Sum', 'Output'];
+
+function drawQKV() {
+    const canvas = document.getElementById('qkvCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.offsetWidth * 2;
+    const H = canvas.height = canvas.offsetHeight * 2;
+    ctx.setTransform(2, 0, 0, 2, 0, 0);
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const stage = qkvStages[qkvStep % qkvStages.length];
+    const tokenIdx = parseInt(document.getElementById('tokenSelect').value);
+    const n = currentTokens.length;
+
+    // Draw stage title
+    ctx.fillStyle = '#7c4dff';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Step ${qkvStep % qkvStages.length + 1}: ${stage}`, w / 2, 30);
+
+    // Draw token representations
+    const tokenY = 80;
+    const tokenSpacing = Math.min(80, (w - 100) / n);
+    const startX = (w - tokenSpacing * n) / 2;
+
+    currentTokens.forEach((token, i) => {
+        const x = startX + i * tokenSpacing + tokenSpacing / 2;
+
+        // Token box
+        const isActive = i === tokenIdx;
+        ctx.fillStyle = isActive ? '#7c4dff30' : '#1a1a3a';
+        ctx.strokeStyle = isActive ? '#7c4dff' : '#2a2a4a';
+        ctx.lineWidth = isActive ? 2 : 1;
+        ctx.beginPath();
+        ctx.roundRect(x - 30, tokenY - 15, 60, 30, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        // Token label
+        ctx.fillStyle = isActive ? '#7c4dff' : '#888';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(token, x, tokenY + 5);
+    });
+
+    // Draw current stage visualization
+    const vizY = 140;
+    const vizH = h - vizY - 40;
+
+    if (qkvStep % qkvStages.length === 0) {
+        // Input embeddings: show vectors
+        drawVectors(ctx, startX, vizY, tokenSpacing, n, 'Input');
+    } else if (qkvStep % qkvStages.length <= 3) {
+        // Q, K, V projections
+        const labels = ['', 'Q', 'K', 'V'];
+        const colors = ['', '#7c4dff', '#448aff', '#26de81'];
+        const idx = qkvStep % qkvStages.length;
+        drawProjection(ctx, startX, vizY, tokenSpacing, n, labels[idx], colors[idx], tokenIdx);
+    } else if (qkvStep % qkvStages.length === 4) {
+        // Q·K^T scores
+        drawScores(ctx, startX, vizY, tokenSpacing, n, tokenIdx);
+    } else if (qkvStep % qkvStages.length === 5) {
+        // Softmax
+        drawSoftmax(ctx, startX, vizY, tokenSpacing, n, tokenIdx);
+    } else if (qkvStep % qkvStages.length === 6) {
+        // Weighted sum
+        drawWeightedSum(ctx, startX, vizY, tokenSpacing, n, tokenIdx);
+    } else {
+        // Output
+        drawVectors(ctx, startX, vizY, tokenSpacing, n, 'Output');
+    }
+}
+
+function drawVectors(ctx, startX, y, spacing, n, label) {
+    for (let i = 0; i < n; i++) {
+        const x = startX + i * spacing + spacing / 2;
+        const barH = 30 + Math.random() * 60;
+
+        ctx.fillStyle = '#7c4dff40';
+        ctx.fillRect(x - 10, y + 80 - barH, 20, barH);
+        ctx.strokeStyle = '#7c4dff';
+        ctx.strokeRect(x - 10, y + 80 - barH, 20, barH);
+    }
+    ctx.fillStyle = '#888';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${label} Vectors (d=4)`, startX + (n * spacing) / 2, y + 100);
+}
+
+function drawProjection(ctx, startX, y, spacing, n, label, color, tokenIdx) {
+    // Show projection matrix
+    ctx.fillStyle = color;
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${label} = X · W_${label}`, startX + (n * spacing) / 2, y + 20);
+
+    // Draw projected vectors with highlight on selected token
+    for (let i = 0; i < n; i++) {
+        const x = startX + i * spacing + spacing / 2;
+        const barH = 20 + Math.random() * 50;
+        const isToken = i === tokenIdx;
+
+        ctx.fillStyle = isToken ? color + '80' : color + '30';
+        ctx.fillRect(x - 8, y + 80 - barH, 16, barH);
+        ctx.strokeStyle = isToken ? color : color + '60';
+        ctx.lineWidth = isToken ? 2 : 1;
+        ctx.strokeRect(x - 8, y + 80 - barH, 16, barH);
+    }
+}
+
+function drawScores(ctx, startX, y, spacing, n, tokenIdx) {
+    ctx.fillStyle = '#f9ca24';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Scores = Q[${currentTokens[tokenIdx]}] · K^T / √d`, startX + (n * spacing) / 2, y + 20);
+
+    // Draw score bars
+    for (let j = 0; j < n; j++) {
+        const x = startX + j * spacing + spacing / 2;
+        const score = Math.exp(-Math.abs(tokenIdx - j) * 0.5);
+        const barH = score * 80;
+
+        ctx.fillStyle = `rgba(249, 202, 36, ${0.3 + score * 0.5})`;
+        ctx.fillRect(x - 12, y + 80 - barH, 24, barH);
+
+        ctx.fillStyle = '#f9ca24';
+        ctx.font = '10px monospace';
+        ctx.fillText(score.toFixed(2), x, y + 95);
+    }
+}
+
+function drawSoftmax(ctx, startX, y, spacing, n, tokenIdx) {
+    ctx.fillStyle = '#26de81';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Weights = softmax(Scores)', startX + (n * spacing) / 2, y + 20);
+
+    // Compute softmax
+    const scores = [];
+    for (let j = 0; j < n; j++) scores.push(Math.exp(-Math.abs(tokenIdx - j) * 0.5));
+    const sum = scores.reduce((a, b) => a + b, 0);
+    const weights = scores.map(s => s / sum);
+
+    for (let j = 0; j < n; j++) {
+        const x = startX + j * spacing + spacing / 2;
+        const barH = weights[j] * 200;
+
+        ctx.fillStyle = `rgba(38, 222, 129, ${0.3 + weights[j] * 2})`;
+        ctx.fillRect(x - 12, y + 80 - barH, 24, barH);
+
+        ctx.fillStyle = '#26de81';
+        ctx.font = '10px monospace';
+        ctx.fillText(weights[j].toFixed(3), x, y + 95);
+    }
+}
+
+function drawWeightedSum(ctx, startX, y, spacing, n, tokenIdx) {
+    ctx.fillStyle = '#448aff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Output = Σ weight_i · V_i', startX + (n * spacing) / 2, y + 20);
+
+    // Show weighted arrows
+    const scores = [];
+    for (let j = 0; j < n; j++) scores.push(Math.exp(-Math.abs(tokenIdx - j) * 0.5));
+    const sum = scores.reduce((a, b) => a + b, 0);
+    const weights = scores.map(s => s / sum);
+
+    for (let j = 0; j < n; j++) {
+        const x = startX + j * spacing + spacing / 2;
+        const weight = weights[j];
+        const barH = weight * 150;
+
+        // Arrow from V to output
+        ctx.strokeStyle = `rgba(68, 138, 255, ${weight * 3})`;
+        ctx.lineWidth = weight * 6;
+        ctx.beginPath();
+        ctx.moveTo(x, y + 20);
+        ctx.lineTo(startX + tokenIdx * spacing + spacing / 2, y + 80);
+        ctx.stroke();
+    }
+
+    // Output vector
+    const outX = startX + tokenIdx * spacing + spacing / 2;
+    ctx.fillStyle = '#448aff60';
+    ctx.fillRect(outX - 15, y + 50, 30, 40);
+    ctx.strokeStyle = '#448aff';
+    ctx.strokeRect(outX - 15, y + 50, 30, 40);
+    ctx.fillStyle = '#448aff';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('out', outX, y + 75);
+}
+
+function stepQKV() {
+    qkvStep++;
+    drawQKV();
+}
+
+function resetQKV() {
+    qkvStep = 0;
+    drawQKV();
+}
+
+// Initial draws
+setTimeout(() => { drawAttention(); drawQKV(); }, 200);
+
+// ========================================================================
+// QUIZ
+// ========================================================================
+function checkQuiz(el, correct) {
+    const options = el.parentElement.querySelectorAll('.quiz-option');
+    options.forEach(o => {
+        o.style.pointerEvents = 'none';
+        o.classList.remove('correct', 'wrong');
+    });
+    if (correct) {
+        el.classList.add('correct');
+        const fb = el.nextElementSibling;
+        if (fb) { fb.classList.add('show'); fb.style.background = '#26de8115'; fb.style.color = '#26de81'; }
+    } else {
+        el.classList.add('wrong');
+        // Find and highlight correct answer
+        options.forEach(o => {
+            if (o !== el && !o.classList.contains('wrong')) {
+                // Check if this is the correct one by finding its onclick
+            }
+        });
+    }
+}
+</script>
+</body>
+</html>

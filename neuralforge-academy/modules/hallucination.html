@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 2.1: Why LLMs Hallucinate — NeuralForge Academy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        :root { --bg-void: #030712; --bg-surface: #0a0f1e; --bg-panel: #0f172a; --accent-cyan: #06b6d4; --accent-violet: #7c3aed; --accent-emerald: #10b981; --accent-amber: #f59e0b; --accent-rose: #f43f5e; --text-primary: #f1f5f9; --text-secondary: #94a3b8; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-void); color: var(--text-primary); line-height: 1.7; }
+        .topbar { position: fixed; top: 0; left: 0; width: 100%; height: 60px; background: rgba(3,7,18,0.95); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 100; display: flex; align-items: center; padding: 0 20px; }
+        .topbar a { color: var(--accent-cyan); text-decoration: none; font-size: 0.9rem; }
+        .topbar .breadcrumb { color: var(--text-secondary); margin-left: 16px; }
+        .topbar .breadcrumb span { color: var(--accent-emerald); }
+        .module-header { padding: 100px 40px 40px; max-width: 1200px; margin: 0 auto; }
+        .module-badge { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; padding: 4px 12px; border-radius: 20px; background: rgba(16,185,129,0.2); color: var(--accent-emerald); border: 1px solid var(--accent-emerald); margin-bottom: 16px; }
+        .module-title { font-family: 'Space Grotesk', sans-serif; font-size: 3rem; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; }
+        .module-subtitle { font-size: 1.2rem; color: var(--text-secondary); max-width: 800px; }
+        .module-meta { display: flex; gap: 24px; margin-top: 24px; flex-wrap: wrap; }
+        .meta-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-secondary); }
+        .content { max-width: 1200px; margin: 0 auto; padding: 40px; }
+        .section { margin-bottom: 60px; }
+        .section-title { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--accent-emerald); margin-bottom: 20px; }
+        .section h3 { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 600; color: var(--text-primary); margin: 24px 0 12px; }
+        .section p { color: var(--text-secondary); margin-bottom: 16px; font-size: 1.05rem; }
+        .canvas-container { width: 100%; height: 500px; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0; position: relative; }
+        .canvas-container canvas { width: 100%; height: 100%; }
+        .canvas-label { position: absolute; bottom: 16px; left: 16px; background: rgba(3,7,18,0.8); padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); }
+        .analogy { background: rgba(6,182,212,0.1); border-left: 3px solid var(--accent-cyan); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+        .warning { background: rgba(244,63,94,0.1); border-left: 3px solid var(--accent-rose); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+        .info-box { padding: 20px; border-radius: 12px; margin: 20px 0; }
+        .info-box.solution { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); }
+        .info-box.solution h4 { color: var(--accent-emerald); }
+        .sim-controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+        .sim-btn { padding: 10px 20px; border: 1px solid var(--accent-emerald); background: transparent; color: var(--accent-emerald); border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
+        .sim-btn:hover, .sim-btn.active { background: var(--accent-emerald); color: var(--bg-void); }
+        .slider-group { margin: 16px 0; }
+        .slider-group label { display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9rem; }
+        .slider-group input[type="range"] { width: 100%; accent-color: var(--accent-emerald); }
+        .question-card { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; margin: 16px 0; cursor: pointer; transition: all 0.3s; }
+        .question-card:hover { border-color: var(--accent-emerald); }
+        .question-text { font-size: 1.1rem; margin-bottom: 12px; }
+        .response-box { padding: 16px; border-radius: 8px; margin-top: 12px; }
+        .response-box.correct { background: rgba(16,185,129,0.1); border: 1px solid var(--accent-emerald); }
+        .response-box.hallucinated { background: rgba(244,63,94,0.1); border: 1px solid var(--accent-rose); }
+        .response-label { font-weight: 600; margin-bottom: 4px; }
+        .response-label.correct { color: var(--accent-emerald); }
+        .response-label.hallucinated { color: var(--accent-rose); }
+        .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
+        .comparison-card { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; }
+        .comparison-card h4 { margin-bottom: 12px; }
+        .comparison-card.parametric h4 { color: var(--accent-rose); }
+        .comparison-card.rag h4 { color: var(--accent-emerald); }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <a href="../index.html">← NeuralForge Academy</a>
+        <div class="breadcrumb"><span>Track 2: RAG</span> → Module 2.1: Why LLMs Hallucinate</div>
+    </div>
+
+    <div class="module-header">
+        <div class="module-badge">TRACK 2 · MODULE 2.1</div>
+        <h1 class="module-title">Why LLMs Hallucinate</h1>
+        <p class="module-subtitle">
+            Understanding the fundamental limitation of language models — and why RAG is the solution.
+        </p>
+        <div class="module-meta">
+            <div class="meta-item">⏱️ 1 hour</div>
+            <div class="meta-item">🎯 2 Simulations</div>
+            <div class="meta-item">📊 Graduate Level</div>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <!-- The Problem -->
+        <div class="section">
+            <h2 class="section-title">🧠 The Closed-Book Exam Problem</h2>
+            <p>
+                An LLM without external knowledge is like a student taking a closed-book exam.
+                They can only answer from memory — and memory is imperfect.
+            </p>
+
+            <div class="canvas-container" id="hallucination-canvas">
+                <div class="canvas-label">Watch the LLM try to answer questions — some correct, some hallucinated</div>
+            </div>
+
+            <div class="sim-controls">
+                <button class="sim-btn active" onclick="askQuestion('known')">Ask Known Question</button>
+                <button class="sim-btn" onclick="askQuestion('unknown')">Ask Unknown Question</button>
+                <button class="sim-btn" onclick="askQuestion('recent')">Ask About Recent Event</button>
+            </div>
+        </div>
+
+        <!-- Interactive Demo -->
+        <div class="section">
+            <h2 class="section-title">🎮 Interactive Hallucination Demo</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                Click on questions to see whether the LLM answers correctly or hallucinates.
+            </p>
+
+            <div class="question-card" onclick="revealAnswer(this, 'known')">
+                <div class="question-text">"What is the capital of France?"</div>
+                <div class="response-box" style="display:none;">
+                    <div class="response-label correct">✅ Correct Response</div>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        "The capital of France is Paris." — This is in the training data. The LLM knows this.
+                    </p>
+                </div>
+            </div>
+
+            <div class="question-card" onclick="revealAnswer(this, 'known')">
+                <div class="question-text">"Who wrote Romeo and Juliet?"</div>
+                <div class="response-box" style="display:none;">
+                    <div class="response-label correct">✅ Correct Response</div>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        "Romeo and Juliet was written by William Shakespeare." — Common knowledge in training data.
+                    </p>
+                </div>
+            </div>
+
+            <div class="question-card" onclick="revealAnswer(this, 'hallucinated')">
+                <div class="question-text">"What did the CEO of Acme Corp say in their Q3 2025 earnings call?"</div>
+                <div class="response-box" style="display:none;">
+                    <div class="response-label hallucinated">❌ Hallucinated Response</div>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        "The CEO stated that revenue increased by 23%..." — This is fabricated. The LLM doesn't have
+                        this information but generates plausible-sounding text anyway.
+                    </p>
+                </div>
+            </div>
+
+            <div class="question-card" onclick="revealAnswer(this, 'hallucinated')">
+                <div class="question-text">"What were the exact scores of yesterday's NBA games?"</div>
+                <div class="response-box" style="display:none;">
+                    <div class="response-label hallucinated">❌ Hallucinated Response</div>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        "The Lakers beat the Celtics 112-108..." — Completely made up. The LLM's training data
+                        has a cutoff date, and it cannot access real-time information.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Why It Happens -->
+        <div class="section">
+            <h2 class="section-title">❓ Why Does This Happen?</h2>
+
+            <h3>1. Training Data Cutoff</h3>
+            <p>
+                LLMs are trained on data up to a specific date. Everything after that date
+                is unknown territory. The model doesn't know what it doesn't know.
+            </p>
+
+            <h3>2. Pattern Completion, Not Knowledge Retrieval</h3>
+            <p>
+                LLMs are fundamentally pattern completion machines. They generate text that
+                <em>looks like</em> the training data, not text that is <em>true</em>.
+                If the pattern suggests a plausible answer, the model will generate it —
+                even if it's wrong.
+            </p>
+
+            <div class="analogy">
+                <strong>Analogy:</strong> Imagine a student who memorized every textbook but never
+                understood the material. They can write beautiful essays that sound right,
+                but they'll confidently state wrong facts if the pattern matches.
+            </div>
+
+            <h3>3. No Uncertainty Estimation</h3>
+            <p>
+                LLMs don't know when they're uncertain. They output the same confident tone
+                whether they're right or wrong. A human would say "I'm not sure" — an LLM
+                just generates the most likely next token.
+            </p>
+
+            <h3>4. Softmax Forces a Choice</h3>
+            <p>
+                The softmax output layer always produces a probability distribution that sums to 1.
+                Even when the model has no relevant knowledge, it must output <em>something</em>.
+                The result: confident-sounding nonsense.
+            </p>
+        </div>
+
+        <!-- Memory Architecture -->
+        <div class="section">
+            <h2 class="section-title">🏗️ Parametric vs Non-Parametric Memory</h2>
+
+            <div class="comparison-grid">
+                <div class="comparison-card parametric">
+                    <h4>🧠 Parametric Memory (LLM Weights)</h4>
+                    <ul style="color: var(--text-secondary); font-size: 0.9rem; padding-left: 20px;">
+                        <li>Knowledge baked into model weights</li>
+                        <li>Static — doesn't update after training</li>
+                        <li>Lossy — compressed representations</li>
+                        <li>No source attribution</li>
+                        <li>Can hallucinate</li>
+                    </ul>
+                </div>
+                <div class="comparison-card rag">
+                    <h4>📚 Non-Parametric Memory (Vector DB)</h4>
+                    <ul style="color: var(--text-secondary); font-size: 0.9rem; padding-left: 20px;">
+                        <li>Knowledge stored externally</li>
+                        <li>Dynamic — can be updated anytime</li>
+                        <li>Exact — original text preserved</li>
+                        <li>Full source attribution</li>
+                        <li>Grounded in real data</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="info-box solution">
+                <h4>💡 The Solution: Retrieval-Augmented Generation (RAG)</h4>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                    RAG combines both: the LLM's parametric knowledge (for language understanding)
+                    with external non-parametric memory (for facts). The LLM retrieves relevant
+                    documents before generating, grounding its response in real data.
+                </p>
+            </div>
+        </div>
+
+        <!-- Hallucination Types -->
+        <div class="section">
+            <h2 class="section-title">📊 Types of Hallucination</h2>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 20px 0;">
+                <div style="background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid rgba(244,63,94,0.3);">
+                    <h4 style="color: var(--accent-rose);">Factual Hallucination</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                        Stating false facts with confidence. "The Earth is 6,000 years old."
+                    </p>
+                </div>
+                <div style="background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid rgba(245,158,11,0.3);">
+                    <h4 style="color: var(--accent-amber);">Fabricated Sources</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                        Citing papers, books, or URLs that don't exist. "According to Smith et al. (2023)..."
+                    </p>
+                </div>
+                <div style="background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid rgba(124,58,237,0.3);">
+                    <h4 style="color: var(--accent-violet);">Logical Errors</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                        Correct premises, wrong conclusions. Math errors, causal fallacies.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Solutions -->
+        <div class="section">
+            <h2 class="section-title">🛡️ Mitigation Strategies</h2>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 20px 0;">
+                <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);">
+                    <h4 style="color: var(--accent-emerald);">RAG</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem;">Retrieve relevant documents before generating.</p>
+                </div>
+                <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(6,182,212,0.3);">
+                    <h4 style="color: var(--accent-cyan);">Chain-of-Thought</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem;">Ask the model to reason step-by-step.</p>
+                </div>
+                <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(124,58,237,0.3);">
+                    <h4 style="color: var(--accent-violet);">Self-Consistency</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem;">Generate multiple answers, take the majority.</p>
+                </div>
+                <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(245,158,11,0.3);">
+                    <h4 style="color: var(--accent-amber);">Fine-Tuning</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem;">Train the model to say "I don't know."</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Three.js: Hallucination Simulation -->
+    <script>
+        const hCanvas = document.getElementById('hallucination-canvas');
+        const hRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        hRenderer.setSize(hCanvas.clientWidth, hCanvas.clientHeight);
+        hRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        hCanvas.insertBefore(hRenderer.domElement, hCanvas.firstChild);
+
+        const hScene = new THREE.Scene();
+        hScene.background = new THREE.Color(0x030712);
+        hScene.fog = new THREE.FogExp2(0x030712, 0.02);
+
+        const hCamera = new THREE.PerspectiveCamera(60, hCanvas.clientWidth / hCanvas.clientHeight, 0.1, 1000);
+        hCamera.position.set(0, 5, 15);
+
+        // LLM Brain sphere
+        const brainGeometry = new THREE.SphereGeometry(2, 32, 32);
+        const brainMaterial = new THREE.MeshStandardMaterial({
+            color: 0x7c3aed,
+            emissive: 0x7c3aed,
+            emissiveIntensity: 0.3,
+            metalness: 0.5,
+            roughness: 0.3,
+        });
+        const brain = new THREE.Mesh(brainGeometry, brainMaterial);
+        hScene.add(brain);
+
+        // Glow ring
+        const ringGeometry = new THREE.TorusGeometry(2.5, 0.05, 16, 100);
+        const ringMaterial = new THREE.MeshBasicMaterial({ color: 0x7c3aed, transparent: true, opacity: 0.5 });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.rotation.x = Math.PI / 2;
+        hScene.add(ring);
+
+        // Question particles
+        const questions = [];
+        function spawnQuestion(type) {
+            const geometry = new THREE.SphereGeometry(0.2, 8, 8);
+            const color = type === 'known' ? 0x10b981 : type === 'unknown' ? 0xf43f5e : 0xf59e0b;
+            const material = new THREE.MeshBasicMaterial({ color });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 5,
+                -10
+            );
+            mesh.userData = { type, speed: 0.05 + Math.random() * 0.05 };
+            hScene.add(mesh);
+            questions.push(mesh);
+        }
+
+        function askQuestion(type) {
+            spawnQuestion(type);
+
+            // Brain reaction
+            gsap.to(brainMaterial, {
+                emissiveIntensity: type === 'known' ? 0.8 : 0.3,
+                duration: 0.5,
+                yoyo: true,
+                repeat: 1,
+            });
+        }
+
+        // Lighting
+        hScene.add(new THREE.AmbientLight(0x404040, 0.5));
+        const hLight = new THREE.PointLight(0x7c3aed, 1, 50);
+        hLight.position.set(5, 5, 5);
+        hScene.add(hLight);
+
+        // Animation
+        function animateHallucination() {
+            requestAnimationFrame(animateHallucination);
+            const time = Date.now() * 0.001;
+
+            brain.rotation.y = time * 0.2;
+            ring.rotation.z = time * 0.3;
+
+            // Move questions toward brain
+            questions.forEach((q, i) => {
+                q.position.z += q.userData.speed;
+                q.position.x *= 0.99;
+                q.position.y *= 0.99;
+
+                // Remove when past brain
+                if (q.position.z > 5) {
+                    hScene.remove(q);
+                    questions.splice(i, 1);
+                }
+            });
+
+            hRenderer.render(hScene, hCamera);
+        }
+        animateHallucination();
+
+        // Reveal answer
+        function revealAnswer(card, type) {
+            const box = card.querySelector('.response-box');
+            box.style.display = box.style.display === 'none' ? 'block' : 'none';
+
+            if (type === 'hallucinated') {
+                gsap.to(brainMaterial.color, { r: 1, g: 0.24, b: 0.36, duration: 0.5 });
+                gsap.to(brainMaterial.emissive, { r: 1, g: 0.24, b: 0.36, duration: 0.5 });
+            } else {
+                gsap.to(brainMaterial.color, { r: 0.06, g: 0.73, b: 0.53, duration: 0.5 });
+                gsap.to(brainMaterial.emissive, { r: 0.06, g: 0.73, b: 0.53, duration: 0.5 });
+            }
+
+            setTimeout(() => {
+                gsap.to(brainMaterial.color, { r: 0.49, g: 0.23, b: 0.93, duration: 0.5 });
+                gsap.to(brainMaterial.emissive, { r: 0.49, g: 0.23, b: 0.93, duration: 0.5 });
+            }, 2000);
+        }
+
+        // Resize
+        window.addEventListener('resize', () => {
+            hCamera.aspect = hCanvas.clientWidth / hCanvas.clientHeight;
+            hCamera.updateProjectionMatrix();
+            hRenderer.setSize(hCanvas.clientWidth, hCanvas.clientHeight);
+        });
+    </script>
+
+</body>
+</html>

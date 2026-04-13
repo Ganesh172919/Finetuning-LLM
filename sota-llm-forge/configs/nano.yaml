@@ -1,0 +1,107 @@
+# =============================================================================
+# NANO TIER CONFIGURATION
+# =============================================================================
+# Total params: ~30-60M | Active params: all (dense, no MoE)
+# Hardware: 1 consumer GPU (8-16GB VRAM)
+# Purpose: Fast iteration, debugging, muP hyperparameter search
+#
+# At frontier scale (100B+): This config would NOT be used.
+# It exists to validate correctness cheaply before scaling up.
+# =============================================================================
+
+# --- Model Architecture ---
+model:
+  type: "dense"                    # "dense" | "moe"
+  vocab_size: 128000               # 128k tokens — good balance of vocab size vs embedding table cost
+  d_model: 512                     # Base model dimension
+  n_layers: 8                      # Transformer depth
+  n_heads: 8                       # Query attention heads
+  n_kv_heads: 2                    # KV heads (4:1 GQA ratio)
+  d_head: 64                       # Per-head dimension (d_model / n_heads)
+  intermediate_dim: 1408           # ~8/3 * d_model, rounded to hardware-friendly multiple
+  max_seq_len: 2048                # Base sequence length for pretraining
+  dropout: 0.0                     # No dropout for pretraining (standard practice)
+  rope_base: 10000                 # RoPE base frequency
+  attention_type: "gqa"            # "gqa" | "mla" — GQA for nano (simpler, correct baseline)
+  weight_tying: true               # Tie input embedding and output head (saves params at small scale)
+
+  # MoE config (disabled for nano)
+  moe_config: null
+
+  # MTP config (disabled for nano initially)
+  mtp_config: null
+
+  # Hyper-connections (disabled for nano)
+  use_hyper_connections: false
+
+# --- Optimizer ---
+optimizer:
+  type: "adamw"                    # "adamw" | "hybrid_muon" — AdamW for nano (simpler)
+  lr: 3.0e-4                       # Peak learning rate
+  weight_decay: 0.1                # Standard weight decay
+  beta1: 0.9
+  beta2: 0.95
+  eps: 1.0e-8
+  warmup_steps: 100                # Linear warmup
+  total_steps: 10000               # Short run for debugging
+  schedule: "cosine"               # "cosine" | "wsd" — cosine for nano (simpler)
+  grad_clip_norm: 1.0              # Global norm gradient clipping
+
+# --- Precision ---
+precision:
+  dtype: "bf16"                    # "bf16" | "fp32" | "fp8" — BF16 default
+  fp8_enabled: false               # FP8 not needed at nano scale
+
+# --- Data ---
+data:
+  train_data_path: "data/train.bin"
+  val_data_path: "data/val.bin"
+  batch_size: 8                    # Per-GPU batch size
+  gradient_accumulation_steps: 4   # Effective batch = 8 * 4 = 32
+  max_seq_len: 2048
+  num_workers: 4
+
+  # Domain mixture (for pretraining)
+  mixture:
+    web: 0.60
+    code: 0.20
+    math: 0.10
+    curated: 0.10
+
+  # Packing
+  packing:
+    enabled: true
+    document_boundary_masking: true  # CRITICAL: prevent cross-document attention
+
+# --- Training ---
+training:
+  seed: 42
+  log_every_n_steps: 10
+  eval_every_n_steps: 500
+  checkpoint_every_n_steps: 1000
+  spike_detection_threshold: 5.0   # z-score threshold for loss spike detection
+
+  # Sequence length curriculum
+  sequence_curriculum: null         # No curriculum for nano (constant 2048)
+
+  # Activation checkpointing
+  activation_checkpointing: false   # Not needed at nano scale (plenty of memory)
+
+# --- Parallelism ---
+parallelism:
+  dp: 1                            # Data parallel (single GPU)
+  tp: 1                            # Tensor parallel (not needed)
+  ep: 1                            # Expert parallel (no MoE)
+  pp: 1                            # Pipeline parallel (not needed)
+
+# --- Logging ---
+logging:
+  wandb_enabled: false
+  wandb_project: "sota-llm-forge"
+  wandb_run_name: "nano-debug"
+
+# --- Checkpointing ---
+checkpointing:
+  save_dir: "checkpoints/nano"
+  save_optimizer_state: true
+  max_checkpoints_to_keep: 3

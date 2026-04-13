@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoE Routing — NeuralForge Academy</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; overflow-x: hidden; }
+
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(10,10,26,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid #2a2a4a; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+.nav .back { color: #7c4dff; text-decoration: none; font-size: 14px; }
+.nav .title { font-size: 16px; font-weight: 600; }
+.nav .progress { font-size: 12px; color: #888; }
+
+.main { margin-top: 60px; }
+.hero { height: 50vh; position: relative; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+.hero canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.hero-content { position: relative; z-index: 2; }
+.hero-content h1 { font-size: 42px; background: linear-gradient(90deg, #06b6d4, #10b981, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 12px; }
+.hero-content p { font-size: 18px; color: #aaa; max-width: 600px; margin: 0 auto; }
+
+.section { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+.section h2 { font-size: 28px; margin-bottom: 24px; color: #06b6d4; }
+
+.demo-container { background: #111128; border: 1px solid #2a2a4a; border-radius: 16px; padding: 24px; margin-bottom: 32px; }
+.demo-canvas { width: 100%; height: 400px; border-radius: 8px; background: #08081a; }
+
+.controls { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; align-items: center; }
+.controls label { font-size: 13px; color: #888; }
+.controls input[type="range"] { accent-color: #06b6d4; width: 120px; }
+.controls select, .controls button { background: #1a1a3a; color: #e0e0e0; border: 1px solid #2a2a4a; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.controls button:hover { border-color: #06b6d4; }
+.controls button.active { background: #06b6d4; border-color: #06b6d4; color: #0a0a1a; font-weight: 600; }
+
+.concept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin: 24px 0; }
+.concept-card { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; transition: all 0.3s; }
+.concept-card:hover { border-color: #06b6d4; transform: translateY(-2px); }
+.concept-card h4 { color: #06b6d4; margin-bottom: 8px; }
+.concept-card p { font-size: 13px; color: #aaa; line-height: 1.6; }
+.concept-card .formula { background: #0a0a1a; border-radius: 6px; padding: 12px; margin: 12px 0; font-family: monospace; font-size: 13px; color: #26de81; text-align: center; }
+
+.stats-bar { display: flex; gap: 24px; margin: 16px 0; flex-wrap: wrap; }
+.stat { background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 8px; padding: 12px 16px; min-width: 140px; }
+.stat .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.stat .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+
+.level-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.level-tab { padding: 8px 16px; border-radius: 6px; border: 1px solid #2a2a4a; background: transparent; color: #888; cursor: pointer; font-size: 13px; }
+.level-tab.active { background: #06b6d4; border-color: #06b6d4; color: #0a0a1a; }
+
+.quiz { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; margin: 24px 0; }
+.quiz h3 { color: #f9ca24; margin-bottom: 16px; }
+.quiz-question { margin-bottom: 16px; }
+.quiz-option { padding: 12px 16px; background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; font-size: 14px; }
+.quiz-option:hover { border-color: #06b6d4; }
+.quiz-option.correct { border-color: #26de81; background: #26de8115; }
+.quiz-option.wrong { border-color: #ff6b6b; background: #ff6b6b15; }
+.quiz-feedback { font-size: 13px; margin-top: 8px; padding: 10px; border-radius: 6px; display: none; }
+.quiz-feedback.show { display: block; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+    <a href="../index.html" class="back">← Back to Academy</a>
+    <span class="title">MoE Routing Visualization</span>
+    <span class="progress">AI Architecture</span>
+</nav>
+
+<div class="hero">
+    <canvas id="heroCanvas"></canvas>
+    <div class="hero-content">
+        <h1>Mixture of Experts</h1>
+        <p>How sparse models route tokens to specialized experts — scaling capacity without scaling compute</p>
+    </div>
+</div>
+
+<div class="main">
+    <div class="section">
+        <div class="level-tabs">
+            <button class="level-tab active" onclick="setLevel('beginner')">Beginner</button>
+            <button class="level-tab" onclick="setLevel('intermediate')">Intermediate</button>
+            <button class="level-tab" onclick="setLevel('advanced')">Advanced</button>
+            <button class="level-tab" onclick="setLevel('expert')">Expert</button>
+        </div>
+
+        <div id="level-beginner">
+            <h2>What is Mixture of Experts?</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>Hospital Analogy</h4>
+                    <p>When you visit a hospital, you don't see every doctor — a receptionist (the router) sends you to the right specialist. MoE works the same way: a gating network routes each token to the most relevant expert network.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Sparse = Efficient</h4>
+                    <p>A model with 8 experts might have 8× the parameters, but each token only uses 1-2 experts. So the compute cost stays similar to a small model while the knowledge capacity matches a much larger one.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Specialization</h4>
+                    <p>Different experts learn to handle different types of input — one might specialize in code, another in math, another in poetry. This emerges naturally during training without explicit programming.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="level-intermediate" style="display:none;">
+            <h2>How MoE Routing Works</h2>
+            <div class="concept-card" style="max-width:800px;">
+                <h4>The Gating Mechanism</h4>
+                <p>For each input token x, the router computes a score for each expert:</p>
+                <div class="formula">G(x) = softmax(W_g · x)</div>
+                <p>Where W_g ∈ ℝ<sup>E×d</sup> is the learned gating matrix, E = number of experts, d = hidden dimension.</p>
+                <p>Only the top-k experts are activated (typically k=1 or k=2):</p>
+                <div class="formula">y = Σᵢ G(x)ᵢ · Eᵢ(x)  (sum over top-k experts only)</div>
+                <p>This means 6/8 or 7/8 of expert parameters are idle for each token — that's the "sparse" in sparse MoE.</p>
+            </div>
+        </div>
+
+        <div id="level-advanced" style="display:none;">
+            <h2>Load Balancing & Capacity</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>Load Imbalance Problem</h4>
+                    <p>Without intervention, the router may collapse to always picking the same 1-2 experts ("expert collapse"). Solutions include auxiliary load-balancing losses and capacity factors.</p>
+                    <div class="formula">L_aux = α · Σᵢ fᵢ · Pᵢ</div>
+                    <p>Where fᵢ = fraction of tokens routed to expert i, Pᵢ = mean routing probability for expert i.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Capacity Factor</h4>
+                    <p>Each expert has a maximum number of tokens it can process per batch. If an expert is overloaded, excess tokens are dropped or routed to the next-best expert.</p>
+                    <div class="formula">capacity = (tokens / E) · capacity_factor</div>
+                    <p>Typical capacity_factor: 1.0–1.5. Higher = less dropping but more memory.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Expert Parallelism</h4>
+                    <p>In distributed training, each expert can live on a different GPU. Tokens are dispatched to the appropriate GPU, processed, and returned. This requires All-to-All communication.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="level-expert" style="display:none;">
+            <h2>Research Frontiers</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>Sparse MoE Architectures</h4>
+                    <p><strong>Switch Transformer:</strong> Top-1 routing, simpler but effective.<br>
+                    <strong>GShard:</strong> Top-2 with capacity factors.<br>
+                    <strong>Mixtral:</strong> Top-2 with 8 experts per layer.<br>
+                    <strong>DeepSeek-V2:</strong> Shared + routed experts with fine-grained segmentation.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Soft MoE</h4>
+                    <p>Instead of hard top-k routing, Soft MoE computes a weighted combination of all expert outputs. Differentiable but loses the compute savings of sparse activation.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Expert Choice Routing</h4>
+                    <p>Instead of tokens choosing experts, experts choose tokens. Each expert picks its top-k tokens. Guarantees perfect load balance but may drop some tokens entirely.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Multi-Latent Attention (MLA)</h4>
+                    <p>DeepSeek-V2's innovation: compresses KV cache using low-rank decomposition, combining MoE efficiency with attention memory savings. State-of-the-art for inference.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive: Routing Visualization -->
+    <div class="section">
+        <h2>Interactive: Token Routing</h2>
+        <div class="demo-container">
+            <h3>Watch Tokens Get Routed to Experts</h3>
+            <canvas id="routingCanvas" class="demo-canvas" width="1100" height="400"></canvas>
+            <div class="controls">
+                <label>Experts: <input type="range" id="expertCount" min="2" max="16" value="8" oninput="updateRouting()"><span id="expertCountVal">8</span></label>
+                <label>Top-K: <input type="range" id="topK" min="1" max="4" value="2" oninput="updateRouting()"><span id="topKVal">2</span></label>
+                <button onclick="routeToken()">▶ Route Token</button>
+                <button onclick="autoRoute()">🔄 Auto Route (10 tokens)</button>
+                <button onclick="resetRouting()">Reset</button>
+            </div>
+            <div class="stats-bar">
+                <div class="stat"><div class="label">Active Experts</div><div class="value" style="color:#06b6d4" id="activeExperts">0</div></div>
+                <div class="stat"><div class="label">Utilization</div><div class="value" style="color:#10b981" id="utilization">0%</div></div>
+                <div class="stat"><div class="label">Load Balance</div><div class="value" style="color:#f59e0b" id="loadBalance">1.0</div></div>
+                <div class="stat"><div class="label">Tokens Routed</div><div class="value" style="color:#f43f5e" id="tokensRouted">0</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive: Load Balancing -->
+    <div class="section">
+        <h2>Interactive: Load Balancing</h2>
+        <div class="demo-container">
+            <h3>Expert Utilization Distribution</h3>
+            <canvas id="loadCanvas" class="demo-canvas" width="1100" height="300"></canvas>
+            <div class="controls">
+                <label>Balance Loss α: <input type="range" id="balanceAlpha" min="0" max="100" value="10" oninput="updateLoadBalance()"><span id="alphaVal">0.10</span></label>
+                <button onclick="simulateImbalance()">Simulate Collapse</button>
+                <button onclick="simulateBalanced()">Simulate Balanced</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz -->
+    <div class="section">
+        <h2>Test Your Knowledge</h2>
+        <div class="quiz">
+            <h3>🧠 MoE Quiz</h3>
+
+            <div class="quiz-question" data-correct="2">
+                <p>1. Why is MoE called "sparse"?</p>
+                <div class="quiz-option" onclick="checkAnswer(this,0)">A) Because the experts have sparse weights</div>
+                <div class="quiz-option" onclick="checkAnswer(this,1)">B) Because the training data is sparse</div>
+                <div class="quiz-option" onclick="checkAnswer(this,2)">C) Because only a subset of experts are activated per token</div>
+                <div class="quiz-option" onclick="checkAnswer(this,3)">D) Because the model uses sparse attention</div>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question" data-correct="1">
+                <p>2. What is "expert collapse"?</p>
+                <div class="quiz-option" onclick="checkAnswer(this,0)">A) When experts run out of memory</div>
+                <div class="quiz-option" onclick="checkAnswer(this,1)">B) When the router always picks the same experts, leaving others unused</div>
+                <div class="quiz-option" onclick="checkAnswer(this,2)">C) When the model becomes too large</div>
+                <div class="quiz-option" onclick="checkAnswer(this,3)">D) When experts produce identical outputs</div>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question" data-correct="3">
+                <p>3. In top-2 routing with 8 experts, what fraction of expert parameters are active per token?</p>
+                <div class="quiz-option" onclick="checkAnswer(this,0)">A) 100%</div>
+                <div class="quiz-option" onclick="checkAnswer(this,1)">B) 50%</div>
+                <div class="quiz-option" onclick="checkAnswer(this,2)">C) 12.5%</div>
+                <div class="quiz-option" onclick="checkAnswer(this,3)">D) 25%</div>
+                <div class="quiz-feedback"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// LEVEL SWITCHING
+// ═══════════════════════════════════════════════════════════
+function setLevel(level) {
+    ['beginner','intermediate','advanced','expert'].forEach(l => {
+        document.getElementById('level-'+l).style.display = l===level?'block':'none';
+    });
+    document.querySelectorAll('.level-tab').forEach(t=>t.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════
+// HERO CANVAS — Expert routing particle animation
+// ═══════════════════════════════════════════════════════════
+(function(){
+    const canvas = document.getElementById('heroCanvas');
+    const ctx = canvas.getContext('2d');
+    let W,H,t=0;
+
+    function resize(){W=canvas.width=canvas.offsetWidth;H=canvas.height=canvas.offsetHeight;}
+    window.addEventListener('resize',resize);resize();
+
+    const experts = Array.from({length:8},(_,i)=>({
+        x: 0, y: 0, // positioned in draw
+        color: ['#06b6d4','#10b981','#f59e0b','#f43f5e','#7c4dff','#448aff','#26de81','#ff6b6b'][i],
+        load: 0
+    }));
+
+    function draw(){
+        ctx.fillStyle='rgba(10,10,26,0.15)';ctx.fillRect(0,0,W,H);
+        t+=0.02;
+
+        const cx=W/2, cy=H/2;
+
+        // Draw experts in circle
+        experts.forEach((e,i)=>{
+            const angle = (i/experts.length)*Math.PI*2 - Math.PI/2;
+            const radius = Math.min(W,H)*0.3;
+            e.x = cx + radius*Math.cos(angle);
+            e.y = cy + radius*Math.sin(angle);
+
+            // Glow
+            const glow = 20 + 10*Math.sin(t*2+i);
+            ctx.fillStyle = e.color+'40';
+            ctx.beginPath();ctx.arc(e.x,e.y,glow,0,Math.PI*2);ctx.fill();
+
+            // Core
+            ctx.fillStyle = e.color;
+            ctx.beginPath();ctx.arc(e.x,e.y,12,0,Math.PI*2);ctx.fill();
+
+            // Label
+            ctx.fillStyle='#fff';ctx.font='bold 11px monospace';
+            ctx.fillText('E'+i,e.x-8,e.y+4);
+        });
+
+        // Draw router in center
+        ctx.fillStyle='#fff';
+        ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#0a0a1a';ctx.font='bold 12px monospace';
+        ctx.fillText('G(x)',cx-14,cy+4);
+
+        // Animate routing lines
+        const numParticles = 5;
+        for(let p=0;p<numParticles;p++){
+            const phase = t*1.5 + p*1.2;
+            const targetExpert = Math.floor((Math.sin(phase*0.7+p)+1)/2*experts.length)%experts.length;
+            const progress = (phase%1);
+
+            if(progress < 0.7){
+                const ep = experts[targetExpert];
+                const px = cx + (ep.x-cx)*(progress/0.7);
+                const py = cy + (ep.y-cy)*(progress/0.7);
+
+                ctx.strokeStyle = ep.color+'80';
+                ctx.lineWidth = 2;
+                ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ep.x,ep.y);ctx.stroke();
+
+                ctx.fillStyle = ep.color;
+                ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fill();
+            }
+        }
+
+        requestAnimationFrame(draw);
+    }
+    draw();
+})();
+
+// ═══════════════════════════════════════════════════════════
+// ROUTING SIMULATION
+// ═══════════════════════════════════════════════════════════
+let expertLoads = [];
+let totalTokensRouted = 0;
+let routingHistory = [];
+
+function updateRouting() {
+    const n = parseInt(document.getElementById('expertCount').value);
+    const k = parseInt(document.getElementById('topK').value);
+    document.getElementById('expertCountVal').textContent = n;
+    document.getElementById('topKVal').textContent = k;
+    expertLoads = new Array(n).fill(0);
+    totalTokensRouted = 0;
+    routingHistory = [];
+    drawRouting();
+    updateStats();
+}
+
+function routeToken() {
+    const n = expertLoads.length;
+    const k = parseInt(document.getElementById('topK').value);
+
+    // Generate random token embedding
+    const scores = Array.from({length:n},()=>Math.random());
+
+    // Softmax
+    const maxS = Math.max(...scores);
+    const exps = scores.map(s=>Math.exp(s-maxS));
+    const sumExp = exps.reduce((a,b)=>a+b,0);
+    const probs = exps.map(e=>e/sumExp);
+
+    // Top-k selection
+    const indexed = probs.map((p,i)=>({prob:p,idx:i}));
+    indexed.sort((a,b)=>b.prob-a.prob);
+    const selected = indexed.slice(0,k);
+
+    // Update loads
+    selected.forEach(s=>expertLoads[s.idx]++);
+    totalTokensRouted++;
+
+    routingHistory.push({selected: selected.map(s=>s.idx), probs});
+
+    drawRouting();
+    updateStats();
+}
+
+function autoRoute() {
+    let count = 0;
+    const interval = setInterval(()=>{
+        routeToken();
+        count++;
+        if(count>=10)clearInterval(interval);
+    },200);
+}
+
+function resetRouting() {
+    expertLoads = new Array(expertLoads.length).fill(0);
+    totalTokensRouted = 0;
+    routingHistory = [];
+    drawRouting();
+    updateStats();
+}
+
+function drawRouting() {
+    const canvas = document.getElementById('routingCanvas');
+    const ctx = canvas.getContext('2d');
+    const W=canvas.width, H=canvas.height;
+    ctx.fillStyle='#08081a';ctx.fillRect(0,0,W,H);
+
+    const n = expertLoads.length;
+    const colors = ['#06b6d4','#10b981','#f59e0b','#f43f5e','#7c4dff','#448aff','#26de81','#ff6b6b',
+                    '#06b6d4','#10b981','#f59e0b','#f43f5e','#7c4dff','#448aff','#26de81','#ff6b6b'];
+
+    // Draw experts as bars
+    const barW = Math.min(60, (W-100)/n - 10);
+    const startX = (W - n*(barW+10))/2;
+    const maxLoad = Math.max(1,...expertLoads);
+    const barAreaH = H - 120;
+
+    // Token input on left
+    ctx.fillStyle='#fff';ctx.font='bold 14px Inter';
+    ctx.fillText('Token Input', 30, H/2);
+    ctx.strokeStyle='#333';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(100,H/2);ctx.lineTo(startX-20,H/2);ctx.stroke();
+    ctx.fillStyle='#06b6d4';
+    ctx.beginPath();ctx.moveTo(startX-20,H/2);ctx.lineTo(startX-30,H/2-6);ctx.lineTo(startX-30,H/2+6);ctx.fill();
+
+    // Draw bars
+    for(let i=0;i<n;i++){
+        const x = startX + i*(barW+10);
+        const load = expertLoads[i]/maxLoad;
+        const barH = load*barAreaH;
+        const y = H-60-barH;
+
+        // Bar
+        const grad = ctx.createLinearGradient(x,y,x,H-60);
+        grad.addColorStop(0,colors[i]);grad.addColorStop(1,colors[i]+'60');
+        ctx.fillStyle=grad;
+        ctx.fillRect(x,y,barW,barH);
+
+        // Border
+        ctx.strokeStyle=colors[i];ctx.lineWidth=1;
+        ctx.strokeRect(x,H-60-barAreaH,barW,barAreaH);
+
+        // Expert label
+        ctx.fillStyle=colors[i];ctx.font='bold 12px monospace';
+        ctx.fillText('E'+i,x+barW/2-8,H-40);
+
+        // Load count
+        ctx.fillStyle='#fff';ctx.font='bold 11px monospace';
+        ctx.fillText(expertLoads[i],x+barW/2-4,y-8);
+
+        // Router connection line
+        const routerX = startX-20;
+        const routerY = H/2;
+        const expertX = x+barW/2;
+        const expertY = H-60-barAreaH;
+
+        // Highlight recently used
+        const lastRouting = routingHistory[routingHistory.length-1];
+        if(lastRouting && lastRouting.selected.includes(i)){
+            ctx.strokeStyle=colors[i]+'80';ctx.lineWidth=3;
+            ctx.beginPath();ctx.moveTo(routerX,routerY);ctx.lineTo(expertX,expertY);ctx.stroke();
+        }
+    }
+
+    // Router box
+    ctx.fillStyle='#1a1a3a';ctx.strokeStyle='#fff';ctx.lineWidth=2;
+    ctx.fillRect(startX-50,H/2-20,40,40);ctx.strokeRect(startX-50,H/2-20,40,40);
+    ctx.fillStyle='#fff';ctx.font='bold 11px monospace';
+    ctx.fillText('Router',startX-48,H/2+4);
+}
+
+function updateStats() {
+    const n = expertLoads.length;
+    const active = expertLoads.filter(l=>l>0).length;
+    const utilization = (active/n*100).toFixed(0);
+
+    // Load balance = (Σ l_i)² / (n · Σ l_i²) — higher is better
+    const sum = expertLoads.reduce((a,b)=>a+b,0);
+    const sumSq = expertLoads.reduce((a,b)=>a+b*b,0);
+    const balance = sum > 0 ? (sum*sum)/(n*sumSq) : 1;
+
+    document.getElementById('activeExperts').textContent = active+'/'+n;
+    document.getElementById('utilization').textContent = utilization+'%';
+    document.getElementById('loadBalance').textContent = balance.toFixed(2);
+    document.getElementById('tokensRouted').textContent = totalTokensRouted;
+
+    drawLoadBalance();
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOAD BALANCE VISUALIZATION
+// ═══════════════════════════════════════════════════════════
+function updateLoadBalance() {
+    const alpha = parseInt(document.getElementById('balanceAlpha').value)/100;
+    document.getElementById('alphaVal').textContent = alpha.toFixed(2);
+    drawLoadBalance();
+}
+
+function simulateImbalance() {
+    const n = expertLoads.length;
+    expertLoads = new Array(n).fill(0);
+    // Simulate collapse: 80% to first expert
+    for(let i=0;i<100;i++){
+        if(Math.random()<0.8) expertLoads[0]++;
+        else expertLoads[Math.floor(Math.random()*n)]++;
+    }
+    totalTokensRouted = 100;
+    drawRouting();
+    updateStats();
+}
+
+function simulateBalanced() {
+    const n = expertLoads.length;
+    expertLoads = new Array(n).fill(0);
+    for(let i=0;i<100;i++){
+        expertLoads[Math.floor(Math.random()*n)]++;
+    }
+    totalTokensRouted = 100;
+    drawRouting();
+    updateStats();
+}
+
+function drawLoadBalance() {
+    const canvas = document.getElementById('loadCanvas');
+    const ctx = canvas.getContext('2d');
+    const W=canvas.width, H=canvas.height;
+    ctx.fillStyle='#08081a';ctx.fillRect(0,0,W,H);
+
+    const n = expertLoads.length;
+    if(n===0)return;
+
+    const colors = ['#06b6d4','#10b981','#f59e0b','#f43f5e','#7c4dff','#448aff','#26de81','#ff6b6b',
+                    '#06b6d4','#10b981','#f59e0b','#f43f5e','#7c4dff','#448aff','#26de81','#ff6b6b'];
+
+    const sum = expertLoads.reduce((a,b)=>a+b,0);
+    if(sum===0){
+        ctx.fillStyle='#555';ctx.font='16px Inter';
+        ctx.fillText('Route some tokens to see distribution',W/2-180,H/2);
+        return;
+    }
+
+    const expected = sum/n;
+    const barW = Math.min(50,(W-100)/n-8);
+    const startX = (W-n*(barW+8))/2;
+    const maxDev = Math.max(...expertLoads.map(l=>Math.abs(l-expected)),expected*0.5);
+
+    // Expected line
+    const ey = H-40-(expected/Math.max(...expertLoads,1))*(H-80);
+    ctx.strokeStyle='#ffffff30';ctx.lineWidth=1;ctx.setLineDash([5,5]);
+    ctx.beginPath();ctx.moveTo(startX-10,ey);ctx.lineTo(startX+n*(barW+8),ey);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#888';ctx.font='10px monospace';
+    ctx.fillText('expected',startX+n*(barW+8)+5,ey+4);
+
+    // Bars
+    for(let i=0;i<n;i++){
+        const x = startX + i*(barW+8);
+        const load = expertLoads[i];
+        const barH = (load/Math.max(...expertLoads,1))*(H-80);
+        const y = H-40-barH;
+
+        ctx.fillStyle=colors[i];
+        ctx.fillRect(x,y,barW,barH);
+
+        // Deviation indicator
+        const dev = (load-expected)/maxDev;
+        const devColor = Math.abs(dev)<0.3?'#26de81':dev>0?'#f59e0b':'#f43f5e';
+        ctx.fillStyle=devColor;ctx.font='bold 10px monospace';
+        ctx.fillText((dev>0?'+':'')+dev.toFixed(1)+'σ',x,H-25);
+
+        ctx.fillStyle='#888';ctx.font='10px monospace';
+        ctx.fillText('E'+i,x+barW/2-6,H-10);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// QUIZ
+// ═══════════════════════════════════════════════════════════
+const feedbacks = [
+    ["Incorrect. The sparsity refers to activation, not weight structure.","Incorrect. Training data density isn't related to MoE sparsity.","Correct! Only top-k experts are activated per token — the rest are idle, making computation sparse.","Incorrect. MoE is about expert selection, not attention patterns."],
+    ["Incorrect. Memory issues are separate from collapse.","Correct! Expert collapse occurs when the router repeatedly selects the same experts, starving others of training signal.","Incorrect. Model size isn't the issue.","Incorrect. Experts may produce different outputs even if some are unused."],
+    ["Incorrect. All parameters would mean dense computation.","Incorrect. 50% would be top-4 of 8.","Incorrect. That's 1/8 = top-1.","Correct! Top-2 of 8 = 2/8 = 25% of expert parameters are active per token."]
+];
+
+function checkAnswer(opt,idx){
+    const q=opt.closest('.quiz-question');
+    const correct=parseInt(q.dataset.correct);
+    const fb=q.querySelector('.quiz-feedback');
+    q.querySelectorAll('.quiz-option').forEach((o,i)=>{
+        o.classList.remove('correct','wrong');
+        if(i===correct)o.classList.add('correct');
+    });
+    if(idx!==correct)opt.classList.add('wrong');
+    const qi=Array.from(q.parentElement.children).indexOf(q);
+    fb.textContent=feedbacks[qi][idx];
+    fb.style.display='block';
+    fb.style.background=idx===correct?'#26de8115':'#ff6b6b15';
+    fb.style.color=idx===correct?'#26de81':'#ff6b6b';
+}
+
+// Init
+updateRouting();
+</script>
+</body>
+</html>

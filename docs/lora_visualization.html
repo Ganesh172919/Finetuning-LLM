@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoRA & QLoRA — Interactive Visualization</title>
+    <style>
+        :root{--bg:#0a0a0f;--s1:#12121a;--s2:#1a1a2e;--a:#6c63ff;--a2:#00d2ff;--ok:#00e676;--warn:#ffab00;--err:#ff5252;--txt:#e0e0e0;--dim:#888;--bdr:#2a2a3e}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);line-height:1.6}
+        .c{max-width:1200px;margin:0 auto;padding:2rem}
+        h1{font-size:2.2rem;background:linear-gradient(135deg,var(--a),var(--a2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        h2{font-size:1.4rem;color:var(--a2);margin:2rem 0 1rem;border-bottom:1px solid var(--bdr);padding-bottom:.5rem}
+        .sub{color:var(--dim);margin-bottom:2rem}
+        .card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:1.5rem;margin:1rem 0}
+        .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+        .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+        @media(max-width:768px){.g2,.g3{grid-template-columns:1fr}}
+        .tabs{display:flex;border-bottom:1px solid var(--bdr);margin:1rem 0 0}
+        .tab{padding:.7rem 1.2rem;cursor:pointer;color:var(--dim);border-bottom:2px solid transparent;font-size:.9rem}
+        .tab:hover{color:var(--txt)}.tab.active{color:var(--a);border-bottom-color:var(--a)}
+        .tc{display:none;padding:1rem 0}.tc.active{display:block}
+        table{width:100%;border-collapse:collapse;margin:1rem 0}
+        th,td{padding:.6rem .8rem;text-align:left;border-bottom:1px solid var(--bdr);font-size:.9rem}
+        th{color:var(--a2);font-weight:600}
+        canvas{display:block;width:100%;border-radius:8px}
+        .viz{background:var(--s2);border-radius:12px;padding:1rem;margin:1rem 0}
+        .slider-group{display:flex;align-items:center;gap:1rem;margin:.5rem 0}
+        .slider-group label{min-width:100px;font-size:.9rem;color:var(--dim)}
+        input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--bdr);border-radius:2px}
+        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--a);border-radius:50%;cursor:pointer}
+        .vd{min-width:50px;text-align:right;font-family:monospace;color:var(--a)}
+        button{background:var(--a);color:#fff;border:none;padding:.5rem 1rem;border-radius:8px;cursor:pointer;font-size:.85rem}
+        button:hover{background:#5a52e0}
+        .ctrls{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+        .metric{text-align:center;padding:.8rem}
+        .mv{font-size:1.8rem;font-weight:700;font-family:monospace}
+        .ml{font-size:.75rem;color:var(--dim);text-transform:uppercase}
+        .lora-diagram{background:var(--s2);border-radius:8px;padding:1.5rem;margin:1rem 0;font-family:monospace;font-size:.85rem;line-height:1.8}
+        .param-bar{display:flex;align-items:center;gap:.5rem;margin:.3rem 0}
+        .param-bar .lbl{min-width:80px;font-size:.8rem;color:var(--dim)}
+        .param-bar .bar{flex:1;height:20px;background:var(--s2);border-radius:4px;overflow:hidden}
+        .param-bar .fill{height:100%;border-radius:4px;transition:width .5s}
+        .param-bar .val{min-width:60px;text-align:right;font-family:monospace;font-size:.8rem}
+    </style>
+</head>
+<body>
+<div class="c">
+    <h1>LoRA & QLoRA</h1>
+    <p class="sub">Interactive visualization of Parameter-Efficient Fine-Tuning methods</p>
+
+    <!-- COMPARISON TABLE -->
+    <h2>📊 Fine-Tuning Methods Comparison</h2>
+    <div class="card" style="overflow-x:auto">
+        <table>
+            <thead><tr><th>Method</th><th>Trainable Params</th><th>Memory</th><th>Quality</th><th>Speed</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Full Fine-Tuning</strong></td><td>100%</td><td>~16GB (7B)</td><td>Best</td><td>Slow</td></tr>
+                <tr><td><strong>LoRA (r=8)</strong></td><td>~0.1%</td><td>~4GB</td><td>Near FT</td><td>Fast</td></tr>
+                <tr><td><strong>LoRA (r=64)</strong></td><td>~1%</td><td>~6GB</td><td>~FT</td><td>Medium</td></tr>
+                <tr><td><strong>QLoRA (r=8)</strong></td><td>~0.1%</td><td>~2GB</td><td>Near FT</td><td>Fast</td></tr>
+                <tr><td><strong>Prefix Tuning</strong></td><td>~0.01%</td><td>~2GB</td><td>Good</td><td>Very Fast</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- INTERACTIVE TABS -->
+    <h2>🔬 Deep Dive</h2>
+    <div class="tabs">
+        <div class="tab active" onclick="sw('lora')">LoRA</div>
+        <div class="tab" onclick="sw('qlora')">QLoRA</div>
+        <div class="tab" onclick="sw('rank')">Rank Selection</div>
+    </div>
+
+    <div id="t-lora" class="tc active">
+        <div class="card">
+            <h3>LoRA — Low-Rank Adaptation</h3>
+            <p>Add low-rank matrices A and B to frozen weights. Only A and B are trained.</p>
+            <div class="lora-diagram">
+<pre>
+Input x ─────────────────────────────────────────┬── Output
+         │                                        │
+         ├──▶ Frozen W (no gradient) ──▶ Wx ─────┤
+         │                                        │
+         └──▶ LoRA A ──▶ LoRA B ──▶ (α/r)·BAx ──┘
+              (train)    (train)
+
+Output = Wx + (α/r) · B · A · x
+</pre>
+            </div>
+            <p style="margin-top:.5rem"><strong>Why it works:</strong> Weight updates during fine-tuning are low-rank</p>
+            <p><strong>Typical rank:</strong> 8-16 (most tasks), 64 (complex tasks)</p>
+        </div>
+    </div>
+    <div id="t-qlora" class="tc">
+        <div class="card">
+            <h3>QLoRA — Quantized LoRA</h3>
+            <p>Combine 4-bit quantization with LoRA for extreme memory savings.</p>
+            <ul style="margin:.5rem 0 0 1.5rem">
+                <li><strong>4-bit NormalFloat:</strong> Quantize base model to 4-bit</li>
+                <li><strong>Double Quantization:</strong> Quantize the quantization constants</li>
+                <li><strong>Paged Optimizers:</strong> Handle memory spikes with CPU offload</li>
+            </ul>
+            <p style="margin-top:.5rem"><strong>Result:</strong> Fine-tune 65B model on single 48GB GPU!</p>
+        </div>
+    </div>
+    <div id="t-rank" class="tc">
+        <div class="card">
+            <h3>Rank Selection Guide</h3>
+            <table>
+                <thead><tr><th>Rank</th><th>Params</th><th>Quality</th><th>Use Case</th></tr></thead>
+                <tbody>
+                    <tr><td>1</td><td>Minimal</td><td>Basic</td><td>Quick prototyping</td></tr>
+                    <tr><td>4</td><td>Small</td><td>Good</td><td>Most tasks</td></tr>
+                    <tr><td>8</td><td>Medium</td><td>Better</td><td>Complex tasks</td></tr>
+                    <tr><td>16</td><td>Large</td><td>Best</td><td>Maximum quality</td></tr>
+                    <tr><td>64</td><td>Very Large</td><td>Near FT</td><td>When LoRA not enough</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- INTERACTIVE CALCULATOR -->
+    <h2>🎮 Memory Calculator</h2>
+    <div class="g2">
+        <div class="card">
+            <h3>Parameters</h3>
+            <div class="slider-group"><label>Model Size (B)</label><input type="range" id="modelSize" min="1" max="70" value="7"><span class="vd" id="modelSizeV">7</span></div>
+            <div class="slider-group"><label>LoRA Rank</label><input type="range" id="loraRank" min="1" max="64" value="8"><span class="vd" id="loraRankV">8</span></div>
+            <div class="slider-group"><label>Batch Size</label><input type="range" id="batchSize" min="1" max="32" value="4"><span class="vd" id="batchSizeV">4</span></div>
+            <div class="ctrls"><button onclick="calcMemory()">▶ Calculate</button></div>
+        </div>
+        <div class="card">
+            <h3>Memory Usage</h3>
+            <div class="g3">
+                <div class="metric"><div class="mv" id="mFull" style="color:var(--err)">0</div><div class="ml">Full FT (GB)</div></div>
+                <div class="metric"><div class="mv" id="mLora" style="color:var(--warn)">0</div><div class="ml">LoRA (GB)</div></div>
+                <div class="metric"><div class="mv" id="mQlora" style="color:var(--ok)">0</div><div class="ml">QLoRA (GB)</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MEMORY BARS -->
+    <h2>📈 Memory Comparison</h2>
+    <div class="card" id="memoryBars"></div>
+
+    <!-- TRAINABLE PARAMS VISUALIZATION -->
+    <h2>🎯 Trainable Parameters</h2>
+    <div class="card">
+        <p style="color:var(--dim);margin-bottom:1rem">Percentage of parameters that are trainable with LoRA (rank 8).</p>
+        <div id="paramBars"></div>
+    </div>
+
+    <!-- SPEEDUP CHART -->
+    <h2>⚡ Training Speedup</h2>
+    <div class="card">
+        <div class="viz"><canvas id="speedChart" height="200"></canvas></div>
+    </div>
+
+    <div style="text-align:center;margin:3rem 0;color:var(--dim);font-size:.85rem">
+        <p>SOTA AI — State-of-the-Art AI from Scratch</p>
+    </div>
+</div>
+
+<script>
+function sw(t){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tc').forEach(x=>x.classList.remove('active'));event.target.classList.add('active');document.getElementById('t-'+t).classList.add('active')}
+
+function calcMemory(){
+    const modelB=+document.getElementById('modelSize').value;
+    const rank=+document.getElementById('loraRank').value;
+    const batch=+document.getElementById('batchSize').value;
+    const params=modelB*1e9;
+
+    // Full FT: model (FP16) + gradients + optimizer states (Adam: 2x model)
+    const fullFT=params*2*4/1e9; // 4x for model+grad+optimizer
+
+    // LoRA: frozen model (FP16) + small LoRA params + gradients
+    const loraParams=params*0.001*rank/8; // ~0.1% for rank 8
+    const lora=params*2/1e9 + loraParams*4*3/1e9; // frozen + trainable*3
+
+    // QLoRA: quantized model (4-bit) + LoRA params
+    const qlora=params*0.5/1e9 + loraParams*4*3/1e9;
+
+    document.getElementById('mFull').textContent=fullFT.toFixed(1);
+    document.getElementById('mLora').textContent=lora.toFixed(1);
+    document.getElementById('mQlora').textContent=qlora.toFixed(1);
+
+    drawMemoryBars(fullFT, lora, qlora);
+    drawParamBars(modelB, rank);
+    drawSpeedChart();
+}
+
+function drawMemoryBars(full, lora, qlora){
+    const container=document.getElementById('memoryBars');
+    const maxV=Math.max(full, lora, qlora);
+    const bars=[
+        {name:'Full Fine-Tuning',val:full,color:'var(--err)'},
+        {name:'LoRA',val:lora,color:'var(--warn)'},
+        {name:'QLoRA',val:qlora,color:'var(--ok)'},
+    ];
+    let html='';
+    bars.forEach(b=>{
+        const pct=b.val/maxV*100;
+        html+=`<div class="param-bar"><span class="lbl">${b.name}</span><div class="bar"><div class="fill" style="width:${pct}%;background:${b.color}"></div></div><span class="val">${b.val.toFixed(1)} GB</span></div>`;
+    });
+    container.innerHTML=html;
+}
+
+function drawParamBars(modelB, rank){
+    const container=document.getElementById('paramBars');
+    const totalParams=modelB*1e9;
+    const loraParams=totalParams*0.001*rank/8;
+    const pct=(loraParams/totalParams*100).toFixed(3);
+
+    let html=`<div style="display:flex;gap:1rem;margin:1rem 0">`;
+    html+=`<div style="flex:1;background:var(--s2);border-radius:8px;height:40px;position:relative;overflow:hidden">`;
+    html+=`<div style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--a),var(--a2));border-radius:8px"></div>`;
+    html+=`<span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-weight:bold">LoRA: ${pct}%</span>`;
+    html+=`</div></div>`;
+    html+=`<p style="color:var(--dim);font-size:.85rem">Model: ${(totalParams/1e9).toFixed(0)}B params | LoRA: ${(loraParams/1e6).toFixed(0)}M params | Frozen: ${((totalParams-loraParams)/1e9).toFixed(0)}B params</p>`;
+    container.innerHTML=html;
+}
+
+function drawSpeedChart(){
+    const cv=document.getElementById('speedChart'),ctx=cv.getContext('2d');
+    const w=cv.width=cv.offsetWidth*2,h=400;ctx.clearRect(0,0,w,h);
+    const p=60,pw=w-p*2,ph=h-p*2;
+
+    const methods=['Full FT','LoRA','QLoRA'];
+    const speeds=[1,3,4]; // Relative speedup
+    const colors=['var(--err)','var(--warn)','var(--ok)'];
+
+    const maxS=Math.max(...speeds);
+
+    // Bars
+    const barW=pw/methods.length*0.6;
+    methods.forEach((m,i)=>{
+        const x=p+i*(pw/methods.length)+(pw/methods.length-barW)/2;
+        const barH=speeds[i]/maxS*ph;
+        const y=p+ph-barH;
+
+        ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue(colors[i].replace('var(','').replace(')',''));
+        ctx.fillRect(x,y,barW,barH);
+
+        // Label
+        ctx.fillStyle='#e0e0e0';ctx.font='18px sans-serif';ctx.textAlign='center';
+        ctx.fillText(m,x+barW/2,p+ph+30);
+        ctx.fillText(`${speeds[i]}x`,x+barW/2,y-10);
+    });
+
+    // Title
+    ctx.fillStyle='#888';ctx.font='16px sans-serif';ctx.textAlign='left';
+    ctx.fillText('Relative Training Speed',p,p-20);
+}
+
+['modelSize','loraRank','batchSize'].forEach(id=>{const s=document.getElementById(id),d=document.getElementById(id+'V');s.addEventListener('input',()=>d.textContent=s.value)});
+
+// Initial calc
+calcMemory();
+</script>
+</body>
+</html>

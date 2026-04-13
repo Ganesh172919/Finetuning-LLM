@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mixture of Experts — Interactive Visualization</title>
+    <style>
+        :root { --bg-void: #030712; --bg-surface: #0a0f1e; --bg-panel: #0f172a; --accent-cyan: #06b6d4; --accent-violet: #7c3aed; --accent-emerald: #10b981; --accent-amber: #f59e0b; --accent-rose: #f43f5e; --text-primary: #f1f5f9; --text-secondary: #94a3b8; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-void); color: var(--text-primary); }
+        .hero { text-align: center; padding: 60px 20px 40px; background: linear-gradient(180deg, rgba(245,158,11,0.1) 0%, transparent 100%); }
+        .hero h1 { font-size: 3rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-amber), var(--accent-rose)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { font-size: 1.2rem; color: var(--text-secondary); max-width: 800px; margin: 16px auto 0; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .section { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; margin-bottom: 24px; }
+        .section h2 { font-size: 1.5rem; color: var(--accent-amber); margin-bottom: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
+        .stat-card { background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; text-align: center; }
+        .stat-value { font-size: 2.5rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-amber), var(--accent-rose)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .stat-label { font-size: 0.9rem; color: var(--text-secondary); margin-top: 8px; }
+        .viz-area { background: var(--bg-surface); border-radius: 12px; padding: 20px; min-height: 300px; }
+        .controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+        .btn { padding: 10px 20px; border: 1px solid var(--accent-amber); background: transparent; color: var(--accent-amber); border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
+        .btn:hover, .btn.active { background: var(--accent-amber); color: var(--bg-void); }
+        .slider-group { margin: 16px 0; }
+        .slider-group label { display: block; margin-bottom: 8px; color: var(--text-secondary); }
+        .slider-group input[type="range"] { width: 100%; accent-color: var(--accent-amber); }
+
+        /* Expert visualization */
+        .expert-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0; }
+        .expert-card { background: var(--bg-panel); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; text-align: center; transition: all 0.3s; cursor: pointer; }
+        .expert-card.active { border-color: var(--accent-amber); box-shadow: 0 0 20px rgba(245,158,11,0.3); }
+        .expert-card.idle { opacity: 0.5; }
+        .expert-name { font-weight: 600; margin-bottom: 4px; }
+        .expert-load { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+        .expert-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+        .expert-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+
+        /* Token flow */
+        .token-flow { display: flex; align-items: center; gap: 16px; margin: 20px 0; justify-content: center; flex-wrap: wrap; }
+        .token-box { padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 1.1rem; }
+        .arrow { font-size: 1.5rem; color: var(--text-secondary); }
+        .router-box { padding: 12px 24px; border: 2px solid var(--accent-amber); border-radius: 12px; font-weight: 600; color: var(--accent-amber); }
+
+        /* Load balance chart */
+        .load-chart { display: flex; gap: 4px; align-items: flex-end; height: 200px; margin: 20px 0; }
+        .load-bar { flex: 1; border-radius: 4px 4px 0 0; transition: height 0.5s; position: relative; }
+        .load-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 0.7rem; color: var(--text-secondary); }
+
+        .comparison-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .comparison-table th, .comparison-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .comparison-table th { background: rgba(245,158,11,0.1); color: var(--accent-amber); font-weight: 600; }
+    </style>
+</head>
+<body>
+
+<div class="hero">
+    <h1>Mixture of Experts</h1>
+    <p>Sparse Conditional Computation — More Parameters, Same Compute</p>
+</div>
+
+<div class="container">
+
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">8x</div>
+            <div class="stat-label">Experts in Mixtral</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">2</div>
+            <div class="stat-label">Active per Token</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">47B</div>
+            <div class="stat-label">Total Parameters</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">13B</div>
+            <div class="stat-label">Active Parameters</div>
+        </div>
+    </div>
+
+    <!-- Interactive Router -->
+    <div class="section">
+        <h2>🎮 Interactive Router Simulation</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Watch how the router selects experts for each token. Only top-k experts activate.
+        </p>
+
+        <div class="slider-group">
+            <label>Top-K: <span id="top-k-val">2</span></label>
+            <input type="range" id="top-k" min="1" max="4" value="2" onchange="updateRouter()">
+        </div>
+
+        <div class="slider-group">
+            <label>Number of Experts: <span id="num-experts-val">8</span></label>
+            <input type="range" id="num-experts" min="2" max="8" value="8" onchange="updateRouter()">
+        </div>
+
+        <div class="controls">
+            <button class="btn active" onclick="routeToken('general')">Route "Hello"</button>
+            <button class="btn" onclick="routeToken('code')">Route "def foo()"</button>
+            <button class="btn" onclick="routeToken('math')">Route "2+2=4"</button>
+            <button class="btn" onclick="routeToken('random')">Random Token</button>
+        </div>
+
+        <div class="token-flow">
+            <div class="token-box" style="background: rgba(6,182,212,0.2); border: 1px solid var(--accent-cyan); color: var(--accent-cyan);" id="input-token">Hello</div>
+            <div class="arrow">→</div>
+            <div class="router-box">🔀 Router</div>
+            <div class="arrow">→</div>
+            <div id="selected-experts"></div>
+        </div>
+
+        <div class="viz-area">
+            <h3 style="color: var(--accent-amber); margin-bottom: 12px;">Expert Activation</h3>
+            <div class="expert-grid" id="expert-grid"></div>
+        </div>
+    </div>
+
+    <!-- Load Balancing -->
+    <div class="section">
+        <h2>⚖️ Load Balancing</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Without load balancing, the router collapses to using only a few experts.
+            The auxiliary loss encourages uniform expert usage.
+        </p>
+
+        <div class="controls">
+            <button class="btn active" onclick="setBalance('balanced')">Balanced</button>
+            <button class="btn" onclick="setBalance('imbalanced')">Imbalanced</button>
+            <button class="btn" onclick="setBalance('collapsed')">Collapsed</button>
+        </div>
+
+        <div class="viz-area">
+            <h3 style="color: var(--accent-cyan); margin-bottom: 12px;">Token Distribution per Expert</h3>
+            <div class="load-chart" id="load-chart"></div>
+        </div>
+    </div>
+
+    <!-- Dense vs MoE -->
+    <div class="section">
+        <h2>Dense vs MoE Comparison</h2>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Property</th>
+                    <th>Dense Model</th>
+                    <th>MoE Model</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Total Parameters</strong></td>
+                    <td>7B</td>
+                    <td>47B (8×7B experts)</td>
+                </tr>
+                <tr>
+                    <td><strong>Active Parameters</strong></td>
+                    <td>7B</td>
+                    <td>13B (2 experts active)</td>
+                </tr>
+                <tr>
+                    <td><strong>Compute per Token</strong></td>
+                    <td>14 TFLOPs</td>
+                    <td>26 TFLOPs</td>
+                </tr>
+                <tr>
+                    <td><strong>Memory</strong></td>
+                    <td>14 GB (FP16)</td>
+                    <td>94 GB (FP16)</td>
+                </tr>
+                <tr>
+                    <td><strong>Quality</strong></td>
+                    <td>Good</td>
+                    <td>Better (more knowledge)</td>
+                </tr>
+                <tr>
+                    <td><strong>Cost per Token</strong></td>
+                    <td>Baseline</td>
+                    <td>~2x compute, but better quality</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Expert Collapse -->
+    <div class="section">
+        <h2>❌ Expert Collapse Problem</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Without regularization, the router learns to send all tokens to one or two experts.
+            The remaining experts never train and become useless.
+        </p>
+
+        <div class="viz-area">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h4 style="color: var(--accent-rose); margin-bottom: 12px;">❌ Collapsed</h4>
+                    <div id="collapsed-chart"></div>
+                </div>
+                <div>
+                    <h4 style="color: var(--accent-emerald); margin-bottom: 12px;">✅ Balanced</h4>
+                    <div id="balanced-chart"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Code -->
+    <div class="section">
+        <h2>Implementation</h2>
+        <div style="background: var(--bg-void); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; overflow-x: auto;">
+<span style="color: #7c3aed;">class</span> <span style="color: #06b6d4;">MoERouter</span>:
+    <span style="color: #6b7280;">"""Routes tokens to top-k experts."""</span>
+
+    <span style="color: #7c3aed;">def</span> <span style="color: #06b6d4;">forward</span>(self, x):
+        <span style="color: #6b7280;"># Compute router logits</span>
+        logits = x @ self.router_weights  <span style="color: #6b7280;"># [batch, num_experts]</span>
+
+        <span style="color: #6b7280;"># Select top-k experts</span>
+        top_k_logits, top_k_indices = torch.topk(logits, self.top_k)
+
+        <span style="color: #6b7280;"># Compute softmax weights over selected experts</span>
+        weights = F.softmax(top_k_logits, dim=-<span style="color: #f59e0b;">1</span>)
+
+        <span style="color: #7c3aed;">return</span> top_k_indices, weights
+
+<span style="color: #7c3aed;">class</span> <span style="color: #06b6d4;">MoELayer</span>:
+    <span style="color: #6b7280;">"""Mixture of Experts layer."""</span>
+
+    <span style="color: #7c3aed;">def</span> <span style="color: #06b6d4;">forward</span>(self, x):
+        <span style="color: #6b7280;"># Route tokens to experts</span>
+        indices, weights = self.router(x)
+
+        <span style="color: #6b7280;"># Process through selected experts</span>
+        output = torch.zeros_like(x)
+        <span style="color: #7c3aed;">for</span> i, expert <span style="color: #7c3aed;">in</span> enumerate(self.experts):
+            mask = (indices == i).any(dim=-<span style="color: #f59e0b;">1</span>)
+            <span style="color: #7c3aed;">if</span> mask.any():
+                expert_out = expert(x[mask])
+                output[mask] += weights[mask, i] * expert_out
+
+        <span style="color: #7c3aed;">return</span> output
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const COLORS = ['#06b6d4', '#7c3aed', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6', '#14b8a6', '#f97316'];
+
+    let topK = 2;
+    let numExperts = 8;
+    let currentToken = 'general';
+
+    function updateRouter() {
+        topK = parseInt(document.getElementById('top-k').value);
+        numExperts = parseInt(document.getElementById('num-experts').value);
+        document.getElementById('top-k-val').textContent = topK;
+        document.getElementById('num-experts-val').textContent = numExperts;
+        routeToken(currentToken);
+    }
+
+    function routeToken(tokenType) {
+        currentToken = tokenType;
+        document.getElementById('input-token').textContent =
+            tokenType === 'general' ? 'Hello' :
+            tokenType === 'code' ? 'def foo()' :
+            tokenType === 'math' ? '2+2=4' : '🎲 Random';
+
+        // Generate random scores
+        const scores = [];
+        for (let i = 0; i < numExperts; i++) {
+            scores.push(Math.random());
+        }
+
+        // Select top-k
+        const indexed = scores.map((s, i) => ({ score: s, index: i }));
+        indexed.sort((a, b) => b.score - a.score);
+        const selected = indexed.slice(0, topK);
+
+        // Normalize weights
+        const weightSum = selected.reduce((s, e) => s + e.score, 0);
+        selected.forEach(e => e.weight = e.score / weightSum);
+
+        // Render expert grid
+        const grid = document.getElementById('expert-grid');
+        grid.innerHTML = '';
+        for (let i = 0; i < numExperts; i++) {
+            const isSelected = selected.find(e => e.index === i);
+            const card = document.createElement('div');
+            card.className = `expert-card ${isSelected ? 'active' : 'idle'}`;
+            card.innerHTML = `
+                <div class="expert-name" style="color: ${COLORS[i]}">Expert ${i}</div>
+                <div class="expert-load" style="color: ${isSelected ? COLORS[i] : 'var(--text-secondary)'}">
+                    ${isSelected ? (isSelected.weight * 100).toFixed(1) + '%' : '0%'}
+                </div>
+                <div class="expert-bar">
+                    <div class="expert-fill" style="width: ${isSelected ? isSelected.weight * 100 : 0}%; background: ${COLORS[i]};"></div>
+                </div>
+            `;
+            grid.appendChild(card);
+        }
+
+        // Render selected experts
+        const selectedDiv = document.getElementById('selected-experts');
+        selectedDiv.innerHTML = selected.map(e =>
+            `<div style="padding: 8px 16px; background: ${COLORS[e.index]}30; border: 1px solid ${COLORS[e.index]}; border-radius: 8px; color: ${COLORS[e.index]}; font-weight: 600;">
+                Expert ${e.index} (${(e.weight * 100).toFixed(0)}%)
+            </div>`
+        ).join('');
+    }
+
+    function setBalance(type) {
+        document.querySelectorAll('.controls .btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+
+        const chart = document.getElementById('load-chart');
+        chart.innerHTML = '';
+
+        for (let i = 0; i < 8; i++) {
+            let pct;
+            if (type === 'balanced') {
+                pct = 10 + Math.random() * 15; // 10-25%
+            } else if (type === 'imbalanced') {
+                pct = i < 2 ? 30 + Math.random() * 20 : 2 + Math.random() * 8;
+            } else {
+                pct = i === 0 ? 80 + Math.random() * 15 : Math.random() * 5;
+            }
+
+            const bar = document.createElement('div');
+            bar.className = 'load-bar';
+            bar.style.height = `${pct}%`;
+            bar.style.background = COLORS[i] + '80';
+            bar.style.border = `1px solid ${COLORS[i]}`;
+            bar.innerHTML = `<div class="load-label">E${i}</div>`;
+            chart.appendChild(bar);
+        }
+    }
+
+    // Initialize
+    routeToken('general');
+    setBalance('balanced');
+
+    // Create collapsed vs balanced comparison
+    function createMiniChart(id, type) {
+        const chart = document.getElementById(id);
+        chart.style.display = 'flex';
+        chart.style.gap = '4px';
+        chart.style.alignItems = 'flex-end';
+        chart.style.height = '150px';
+
+        for (let i = 0; i < 8; i++) {
+            let pct = type === 'collapsed' ? (i === 0 ? 85 : Math.random() * 5) : (10 + Math.random() * 15);
+            const bar = document.createElement('div');
+            bar.style.flex = '1';
+            bar.style.height = `${pct}%`;
+            bar.style.background = COLORS[i] + '80';
+            bar.style.borderRadius = '4px 4px 0 0';
+            bar.style.border = `1px solid ${COLORS[i]}`;
+            chart.appendChild(bar);
+        }
+    }
+    createMiniChart('collapsed-chart', 'collapsed');
+    createMiniChart('balanced-chart', 'balanced');
+</script>
+
+</body>
+</html>

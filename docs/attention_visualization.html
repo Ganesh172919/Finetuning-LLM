@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attention Mechanisms — Interactive Visualization</title>
+    <style>
+        :root{--bg:#0a0a0f;--s1:#12121a;--s2:#1a1a2e;--a:#6c63ff;--a2:#00d2ff;--ok:#00e676;--warn:#ffab00;--err:#ff5252;--txt:#e0e0e0;--dim:#888;--bdr:#2a2a3e}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);line-height:1.6}
+        .c{max-width:1200px;margin:0 auto;padding:2rem}
+        h1{font-size:2.2rem;background:linear-gradient(135deg,var(--a),var(--a2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        h2{font-size:1.4rem;color:var(--a2);margin:2rem 0 1rem;border-bottom:1px solid var(--bdr);padding-bottom:.5rem}
+        .sub{color:var(--dim);margin-bottom:2rem}
+        .card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:1.5rem;margin:1rem 0}
+        .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+        .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+        @media(max-width:768px){.g2,.g3{grid-template-columns:1fr}}
+        .tabs{display:flex;border-bottom:1px solid var(--bdr);margin:1rem 0 0}
+        .tab{padding:.7rem 1.2rem;cursor:pointer;color:var(--dim);border-bottom:2px solid transparent;font-size:.9rem}
+        .tab:hover{color:var(--txt)}.tab.active{color:var(--a);border-bottom-color:var(--a)}
+        .tc{display:none;padding:1rem 0}.tc.active{display:block}
+        table{width:100%;border-collapse:collapse;margin:1rem 0}
+        th,td{padding:.6rem .8rem;text-align:left;border-bottom:1px solid var(--bdr);font-size:.9rem}
+        th{color:var(--a2);font-weight:600}
+        canvas{display:block;width:100%;border-radius:8px}
+        .viz{background:var(--s2);border-radius:12px;padding:1rem;margin:1rem 0}
+        .slider-group{display:flex;align-items:center;gap:1rem;margin:.5rem 0}
+        .slider-group label{min-width:100px;font-size:.9rem;color:var(--dim)}
+        input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--bdr);border-radius:2px}
+        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--a);border-radius:50%;cursor:pointer}
+        .vd{min-width:50px;text-align:right;font-family:monospace;color:var(--a)}
+        button{background:var(--a);color:#fff;border:none;padding:.5rem 1rem;border-radius:8px;cursor:pointer;font-size:.85rem}
+        button:hover{background:#5a52e0}
+        .ctrls{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+        .metric{text-align:center;padding:.8rem}
+        .mv{font-size:1.8rem;font-weight:700;font-family:monospace}
+        .ml{font-size:.75rem;color:var(--dim);text-transform:uppercase}
+        .attn-cell{width:24px;height:24px;border-radius:3px;display:inline-block;margin:1px;transition:all .3s}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    </style>
+</head>
+<body>
+<div class="c">
+    <h1>Attention Mechanisms</h1>
+    <p class="sub">Interactive comparison of Standard, Flash, Multi-Head, and Grouped Query Attention</p>
+
+    <!-- COMPARISON TABLE -->
+    <h2>📊 Attention Types Comparison</h2>
+    <div class="card" style="overflow-x:auto">
+        <table>
+            <thead><tr><th>Type</th><th>Complexity</th><th>Memory</th><th>KV Heads</th><th>Used By</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Standard (MHA)</strong></td><td>O(n²)</td><td>O(n²)</td><td>All heads</td><td>GPT-3, BERT</td></tr>
+                <tr><td><strong>Multi-Query (MQA)</strong></td><td>O(n²)</td><td>O(n)</td><td>1 shared</td><td>PaLM, Falcon</td></tr>
+                <tr><td><strong>Grouped Query (GQA)</strong></td><td>O(n²)</td><td>O(n/g)</td><td>Groups</td><td>LLaMA 2, Mistral</td></tr>
+                <tr><td><strong>Flash Attention</strong></td><td>O(n²) FLOPs</td><td>O(n)</td><td>Any</td><td>Most modern LLMs</td></tr>
+                <tr><td><strong>Linear Attention</strong></td><td>O(n)</td><td>O(n)</td><td>N/A</td><td>RWKV, Mamba</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- INTERACTIVE TABS -->
+    <h2>🔬 Deep Dive</h2>
+    <div class="tabs">
+        <div class="tab active" onclick="sw('mha')">Multi-Head</div>
+        <div class="tab" onclick="sw('gqa')">Grouped Query</div>
+        <div class="tab" onclick="sw('flash')">Flash</div>
+        <div class="tab" onclick="sw('linear')">Linear</div>
+    </div>
+
+    <div id="t-mha" class="tc active">
+        <div class="card">
+            <h3>Multi-Head Attention (MHA)</h3>
+            <p>Standard attention with H independent heads, each with its own Q, K, V projections.</p>
+            <p style="margin-top:.5rem"><strong>Pros:</strong> Maximum expressiveness, each head learns different patterns</p>
+            <p><strong>Cons:</strong> O(n²) memory for KV cache during inference</p>
+            <p style="margin-top:.5rem"><strong>Formula:</strong> Attention(Q,K,V) = softmax(QK^T/√d)V</p>
+        </div>
+    </div>
+    <div id="t-gqa" class="tc">
+        <div class="card">
+            <h3>Grouped Query Attention (GQA)</h3>
+            <p>Share KV heads across groups of Q heads. Balance between MHA (full) and MQA (single).</p>
+            <p style="margin-top:.5rem"><strong>Pros:</strong> 2-4x faster inference than MHA, better quality than MQA</p>
+            <p><strong>Cons:</strong> Slightly less expressive than MHA</p>
+            <p style="margin-top:.5rem"><strong>Used by:</strong> LLaMA 2 70B, Mistral 7B</p>
+        </div>
+    </div>
+    <div id="t-flash" class="tc">
+        <div class="card">
+            <h3>Flash Attention</h3>
+            <p>IO-aware attention that tiles computation into GPU SRAM. Exact same result, 2-4x faster.</p>
+            <p style="margin-top:.5rem"><strong>Key insight:</strong> Optimize for memory hierarchy, not FLOPs</p>
+            <p><strong>Algorithm:</strong> Online softmax + tiled matmul</p>
+            <p style="margin-top:.5rem"><strong>Memory:</strong> O(n) instead of O(n²)</p>
+        </div>
+    </div>
+    <div id="t-linear" class="tc">
+        <div class="card">
+            <h3>Linear Attention</h3>
+            <p>Replace softmax with kernel function to get O(n) complexity.</p>
+            <p style="margin-top:.5rem"><strong>Approach:</strong> φ(Q)φ(K)^T instead of softmax(QK^T)</p>
+            <p><strong>Trade-off:</strong> Linear complexity but may lose some quality</p>
+            <p style="margin-top:.5rem"><strong>Used by:</strong> RWKV, Mamba (SSM-based)</p>
+        </div>
+    </div>
+
+    <!-- INTERACTIVE SIMULATION -->
+    <h2>🎮 Attention Simulation</h2>
+    <div class="g2">
+        <div class="card">
+            <h3>Parameters</h3>
+            <div class="slider-group"><label>Seq Length</label><input type="range" id="seqLen" min="4" max="16" value="8"><span class="vd" id="seqLenV">8</span></div>
+            <div class="slider-group"><label>Heads</label><input type="range" id="heads" min="1" max="8" value="4"><span class="vd" id="headsV">4</span></div>
+            <div class="slider-group"><label>Temperature</label><input type="range" id="temp" min="0.1" max="2" value="1" step="0.1"><span class="vd" id="tempV">1.0</span></div>
+            <div class="ctrls"><button onclick="runAttn()">▶ Compute Attention</button></div>
+        </div>
+        <div class="card">
+            <h3>Metrics</h3>
+            <div class="g3">
+                <div class="metric"><div class="mv" id="mEntropy" style="color:var(--a)">0.00</div><div class="ml">Entropy</div></div>
+                <div class="metric"><div class="mv" id="mSparsity" style="color:var(--ok)">0%</div><div class="ml">Sparsity</div></div>
+                <div class="metric"><div class="mv" id="mMax" style="color:var(--warn)">0.00</div><div class="ml">Max Attn</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ATTENTION MATRIX -->
+    <h2>🎯 Attention Matrix</h2>
+    <div class="card">
+        <p style="color:var(--dim);margin-bottom:1rem">Click "Compute Attention" to see the attention pattern. Brighter = higher attention weight.</p>
+        <div id="attnGrid" style="font-family:monospace;overflow-x:auto"></div>
+    </div>
+
+    <!-- COMPLEXITY CHART -->
+    <h2>📈 Complexity Comparison</h2>
+    <div class="card">
+        <div class="viz"><canvas id="complexChart" height="250"></canvas></div>
+    </div>
+
+    <!-- KV CACHE VISUALIZATION -->
+    <h2>💾 KV Cache Memory</h2>
+    <div class="card">
+        <p style="color:var(--dim);margin-bottom:1rem">Memory needed for KV cache during inference (7B model, 32 heads, d=128).</p>
+        <div id="kvBars"></div>
+    </div>
+
+    <div style="text-align:center;margin:3rem 0;color:var(--dim);font-size:.85rem">
+        <p>SOTA AI — State-of-the-Art AI from Scratch</p>
+    </div>
+</div>
+
+<script>
+let attnMatrix=null;
+function sw(t){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tc').forEach(x=>x.classList.remove('active'));event.target.classList.add('active');document.getElementById('t-'+t).classList.add('active')}
+
+function runAttn(){
+    const seqLen=+document.getElementById('seqLen').value;
+    const nHeads=+document.getElementById('heads').value;
+    const temp=+document.getElementById('temp').value;
+
+    // Generate random Q, K
+    const Q=Array.from({length:seqLen},()=>Array.from({length:64},()=>(Math.random()-.5)*2));
+    const K=Array.from({length:seqLen},()=>Array.from({length:64},()=>(Math.random()-.5)*2));
+
+    // Compute attention scores
+    const scores=[];
+    for(let i=0;i<seqLen;i++){
+        scores[i]=[];
+        for(let j=0;j<seqLen;j++){
+            let dot=0;
+            for(let k=0;k<64;k++)dot+=Q[i][k]*K[j][k];
+            scores[i][j]=dot/Math.sqrt(64)/temp;
+        }
+    }
+
+    // Softmax
+    attnMatrix=[];
+    for(let i=0;i<seqLen;i++){
+        const maxS=Math.max(...scores[i]);
+        const expS=scores[i].map(s=>Math.exp(s-maxS));
+        const sum=expS.reduce((a,b)=>a+b,0);
+        attnMatrix[i]=expS.map(e=>e/sum);
+    }
+
+    // Metrics
+    let entropy=0,sparsity=0,maxAttn=0;
+    for(let i=0;i<seqLen;i++){
+        for(let j=0;j<seqLen;j++){
+            const p=attnMatrix[i][j];
+            if(p>0)entropy-=p*Math.log(p);
+            if(p<0.01)sparsity++;
+            if(p>maxAttn)maxAttn=p;
+        }
+    }
+    entropy/=seqLen;
+    sparsity/=seqLen*seqLen;
+
+    document.getElementById('mEntropy').textContent=entropy.toFixed(2);
+    document.getElementById('mSparsity').textContent=(sparsity*100).toFixed(0)+'%';
+    document.getElementById('mMax').textContent=maxAttn.toFixed(2);
+
+    drawAttnGrid(seqLen);
+    drawComplexChart();
+    drawKVBars();
+}
+
+function drawAttnGrid(seqLen){
+    const container=document.getElementById('attnGrid');
+    let html='<div style="display:flex;gap:2px;flex-direction:column">';
+    html+='<div style="display:flex;gap:2px"><span style="width:30px"></span>';
+    for(let j=0;j<seqLen;j++)html+=`<span style="width:24px;text-align:center;font-size:.7rem;color:var(--dim)">${j}</span>`;
+    html+='</div>';
+    for(let i=0;i<seqLen;i++){
+        html+=`<div style="display:flex;gap:2px;align-items:center"><span style="width:30px;font-size:.7rem;color:var(--dim);text-align:right">${i}</span>`;
+        for(let j=0;j<seqLen;j++){
+            const val=attnMatrix[i][j];
+            const intensity=Math.min(1,val*3);
+            html+=`<span class="attn-cell" style="background:rgba(108,99,255,${intensity})" title="q=${i} k=${j} w=${val.toFixed(3)}"></span>`;
+        }
+        html+='</div>';
+    }
+    html+='</div>';
+    container.innerHTML=html;
+}
+
+function drawComplexChart(){
+    const cv=document.getElementById('complexChart'),ctx=cv.getContext('2d');
+    const w=cv.width=cv.offsetWidth*2,h=500;ctx.clearRect(0,0,w,h);
+    const p=60,pw=w-p*2,ph=h-p*2;
+    const seqs=[128,512,2048,8192,32768];
+    const mha=seqs.map(n=>n*n),gqa=seqs.map(n=>n*n/8),linear=seqs.map(n=>n*64);
+    const maxV=Math.max(...mha);
+
+    // Grid
+    ctx.strokeStyle='#2a2a3e';ctx.lineWidth=1;
+    for(let i=0;i<=4;i++){const y=p+ph/4*i;ctx.beginPath();ctx.moveTo(p,y);ctx.lineTo(w-p,y);ctx.stroke()}
+
+    function drawLine(data,color,label,offset){
+        ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();
+        for(let i=0;i<data.length;i++){const x=p+i/(data.length-1)*pw,y=p+ph-(Math.log10(data[i])/Math.log10(maxV))*ph;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}
+        ctx.stroke();
+        ctx.fillStyle=color;ctx.font='20px sans-serif';ctx.textAlign='left';ctx.fillText(label,w-p-200,p+30+offset);
+    }
+    drawLine(mha,'#ff5252','MHA O(n²)',0);
+    drawLine(gqa,'#ffab00','GQA O(n²/8)',30);
+    drawLine(linear,'#00e676','Linear O(n)',60);
+
+    ctx.fillStyle='#888';ctx.font='16px mono';ctx.textAlign='center';
+    for(let i=0;i<seqs.length;i++){const x=p+i/(seqs.length-1)*pw;ctx.fillText(seqs[i].toLocaleString(),x,h-10)}
+}
+
+function drawKVBars(){
+    const container=document.getElementById('kvBars');
+    const configs=[
+        {name:'MHA (32 heads)',kv:32},
+        {name:'GQA (8 groups)',kv:8},
+        {name:'MQA (1 head)',kv:1},
+    ];
+    const maxKV=32;
+    let html='';
+    configs.forEach(c=>{
+        const pct=c.kv/maxKV*100;
+        const memGB=(c.kv*128*2*4096*32*2/1e9).toFixed(1);
+        html+=`<div style="display:flex;align-items:center;gap:1rem;margin:.5rem 0"><span style="min-width:120px;font-size:.9rem;color:var(--dim)">${c.name}</span><div style="flex:1;height:24px;background:var(--s2);border-radius:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--a),var(--a2));border-radius:4px"></div></div><span style="min-width:60px;text-align:right;font-family:monospace;font-size:.85rem">${memGB}GB</span></div>`;
+    });
+    container.innerHTML=html;
+}
+
+['seqLen','heads','temp'].forEach(id=>{const s=document.getElementById(id),d=document.getElementById(id+'V');s.addEventListener('input',()=>d.textContent=id==='temp'?parseFloat(s.value).toFixed(1):s.value)});
+
+// Initial render
+drawComplexChart();
+drawKVBars();
+</script>
+</body>
+</html>

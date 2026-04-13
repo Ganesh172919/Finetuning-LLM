@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inference Optimization — Interactive Dashboard</title>
+    <style>
+        :root { --bg-void: #030712; --bg-surface: #0a0f1e; --bg-panel: #0f172a; --accent-cyan: #06b6d4; --accent-violet: #7c3aed; --accent-emerald: #10b981; --accent-amber: #f59e0b; --accent-rose: #f43f5e; --text-primary: #f1f5f9; --text-secondary: #94a3b8; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-void); color: var(--text-primary); }
+        .hero { text-align: center; padding: 60px 20px 40px; background: linear-gradient(180deg, rgba(6,182,212,0.1) 0%, transparent 100%); }
+        .hero h1 { font-size: 3rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { font-size: 1.2rem; color: var(--text-secondary); max-width: 800px; margin: 16px auto 0; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .section { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; margin-bottom: 24px; }
+        .section h2 { font-size: 1.5rem; color: var(--accent-cyan); margin-bottom: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
+        .stat-card { background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; text-align: center; }
+        .stat-value { font-size: 2.5rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .stat-label { font-size: 0.9rem; color: var(--text-secondary); margin-top: 8px; }
+        .controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+        .btn { padding: 10px 20px; border: 1px solid var(--accent-cyan); background: transparent; color: var(--accent-cyan); border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
+        .btn:hover, .btn.active { background: var(--accent-cyan); color: var(--bg-void); }
+        .slider-group { margin: 16px 0; }
+        .slider-group label { display: block; margin-bottom: 8px; color: var(--text-secondary); }
+        .slider-group input[type="range"] { width: 100%; accent-color: var(--accent-cyan); }
+        .viz-area { background: var(--bg-surface); border-radius: 12px; padding: 20px; min-height: 300px; }
+
+        /* Pipeline visualization */
+        .pipeline { display: flex; gap: 8px; align-items: center; margin: 20px 0; flex-wrap: wrap; justify-content: center; }
+        .pipeline-stage { padding: 12px 20px; border-radius: 12px; font-weight: 600; text-align: center; min-width: 120px; }
+        .pipeline-arrow { font-size: 1.5rem; color: var(--text-secondary); }
+        .pipeline-stage.tokenizer { background: rgba(6,182,212,0.2); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); }
+        .pipeline-stage.prefill { background: rgba(124,58,237,0.2); border: 1px solid var(--accent-violet); color: var(--accent-violet); }
+        .pipeline-stage.decode { background: rgba(16,185,129,0.2); border: 1px solid var(--accent-emerald); color: var(--accent-emerald); }
+        .pipeline-stage.detokenize { background: rgba(245,158,11,0.2); border: 1px solid var(--accent-amber); color: var(--accent-amber); }
+
+        /* Latency breakdown */
+        .latency-bar { height: 40px; border-radius: 8px; overflow: hidden; display: flex; margin: 12px 0; }
+        .latency-segment { display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; }
+
+        /* Optimization cards */
+        .opt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 20px 0; }
+        .opt-card { background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; transition: all 0.3s; }
+        .opt-card:hover { border-color: var(--accent-cyan); transform: translateY(-2px); }
+        .opt-card h4 { margin-bottom: 8px; }
+        .opt-card .speedup { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; margin: 8px 0; }
+        .opt-card .description { font-size: 0.85rem; color: var(--text-secondary); }
+
+        /* Comparison table */
+        .comparison-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .comparison-table th, .comparison-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .comparison-table th { background: rgba(6,182,212,0.1); color: var(--accent-cyan); }
+        .comparison-table .good { color: var(--accent-emerald); }
+        .comparison-table .medium { color: var(--accent-amber); }
+        .comparison-table .bad { color: var(--accent-rose); }
+
+        /* Token generation animation */
+        .token-stream { display: flex; gap: 4px; flex-wrap: wrap; margin: 20px 0; min-height: 40px; }
+        .token { padding: 6px 12px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="hero">
+    <h1>Inference Optimization</h1>
+    <p>Making LLMs Faster, Cheaper, and More Efficient</p>
+</div>
+
+<div class="container">
+
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">3x</div>
+            <div class="stat-label">Speculative Decoding</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">10x</div>
+            <div class="stat-label">Flash Attention</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">4x</div>
+            <div class="stat-label">INT4 Quantization</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">2-3x</div>
+            <div class="stat-label">Continuous Batching</div>
+        </div>
+    </div>
+
+    <!-- Inference Pipeline -->
+    <div class="section">
+        <h2>🔄 The Inference Pipeline</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Every LLM request goes through this pipeline. Each stage is an optimization opportunity.
+        </p>
+
+        <div class="pipeline">
+            <div class="pipeline-stage tokenizer">📝 Tokenizer</div>
+            <div class="pipeline-arrow">→</div>
+            <div class="pipeline-stage prefill">⚡ Prefill</div>
+            <div class="pipeline-arrow">→</div>
+            <div class="pipeline-stage decode">🔄 Decode</div>
+            <div class="pipeline-arrow">→</div>
+            <div class="pipeline-stage detokenize">📝 Detokenizer</div>
+        </div>
+
+        <div class="latency-bar">
+            <div class="latency-segment" style="width: 5%; background: rgba(6,182,212,0.4);">Tokenize</div>
+            <div class="latency-segment" style="width: 30%; background: rgba(124,58,237,0.4);">Prefill (parallel)</div>
+            <div class="latency-segment" style="width: 60%; background: rgba(16,185,129,0.4);">Decode (sequential)</div>
+            <div class="latency-segment" style="width: 5%; background: rgba(245,158,11,0.4);">Detok</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+            <div>
+                <h4 style="color: var(--accent-violet);">Prefill Phase</h4>
+                <p style="color: var(--text-secondary); font-size: 0.85rem;">
+                    Process all input tokens in parallel. Compute-bound.
+                    Optimized by Flash Attention, KV cache.
+                </p>
+            </div>
+            <div>
+                <h4 style="color: var(--accent-emerald);">Decode Phase</h4>
+                <p style="color: var(--text-secondary); font-size: 0.85rem;">
+                    Generate tokens one at a time. Memory-bound.
+                    Optimized by speculative decoding, batching.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Token Generation Demo -->
+    <div class="section">
+        <h2>🎯 Live Token Generation</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Watch tokens being generated one at a time. Each token requires a full forward pass.
+        </p>
+
+        <div class="controls">
+            <button class="btn active" onclick="startGeneration()">▶ Generate</button>
+            <button class="btn" onclick="stopGeneration()">⏹ Stop</button>
+            <button class="btn" onclick="resetGeneration()">↺ Reset</button>
+        </div>
+
+        <div class="slider-group">
+            <label>Tokens per second: <span id="tps-val">30</span></label>
+            <input type="range" id="tps" min="5" max="100" value="30" onchange="updateTPS()">
+        </div>
+
+        <div class="token-stream" id="token-stream"></div>
+    </div>
+
+    <!-- Optimization Techniques -->
+    <div class="section">
+        <h2>⚡ Optimization Techniques</h2>
+
+        <div class="opt-grid">
+            <div class="opt-card">
+                <h4 style="color: var(--accent-cyan);">Flash Attention</h4>
+                <div class="speedup" style="color: var(--accent-cyan);">10x</div>
+                <div class="description">
+                    IO-aware attention computation. Avoids materializing O(N²) attention matrix.
+                    Uses tiling to fit in SRAM. Standard in all modern LLMs.
+                </div>
+            </div>
+            <div class="opt-card">
+                <h4 style="color: var(--accent-violet);">Speculative Decoding</h4>
+                <div class="speedup" style="color: var(--accent-violet);">2-3x</div>
+                <div class="description">
+                    Small draft model generates candidates, large model verifies in parallel.
+                    Guaranteed to produce same output as original model.
+                </div>
+            </div>
+            <div class="opt-card">
+                <h4 style="color: var(--accent-emerald);">KV Cache</h4>
+                <div class="speedup" style="color: var(--accent-emerald);">10x</div>
+                <div class="description">
+                    Cache computed key-value pairs. Avoids recomputing attention for previous tokens.
+                    Essential for autoregressive generation.
+                </div>
+            </div>
+            <div class="opt-card">
+                <h4 style="color: var(--accent-amber);">Continuous Batching</h4>
+                <div class="speedup" style="color: var(--accent-amber);">2-3x</div>
+                <div class="description">
+                    Process multiple requests together. Dynamically add/remove requests as they complete.
+                    Maximizes GPU utilization.
+                </div>
+            </div>
+            <div class="opt-card">
+                <h4 style="color: var(--accent-rose);">INT4 Quantization</h4>
+                <div class="speedup" style="color: var(--accent-rose);">2-4x</div>
+                <div class="description">
+                    Reduce weights from FP16 to INT4. 4x memory reduction, 2x speedup.
+                    Methods: GPTQ, AWQ, GGUF.
+                </div>
+            </div>
+            <div class="opt-card">
+                <h4 style="color: #8b5cf6;">Paged Attention</h4>
+                <div class="speedup" style="color: #8b5cf6;">2x</div>
+                <div class="description">
+                    Virtual memory for KV cache. Non-contiguous blocks eliminate fragmentation.
+                    96%+ memory utilization (vs 40% without).
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Latency Calculator -->
+    <div class="section">
+        <h2>🧮 Latency Calculator</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Estimate inference latency for different configurations.
+        </p>
+
+        <div class="slider-group">
+            <label>Model Size: <span id="model-size-val">7B</span></label>
+            <input type="range" id="model-size" min="1" max="5" value="2" step="1" onchange="calcLatency()">
+        </div>
+
+        <div class="slider-group">
+            <label>Sequence Length: <span id="seq-len-val">512</span></label>
+            <input type="range" id="seq-len" min="128" max="4096" value="512" step="128" onchange="calcLatency()">
+        </div>
+
+        <div class="slider-group">
+            <label>Batch Size: <span id="batch-val">1</span></label>
+            <input type="range" id="batch" min="1" max="32" value="1" onchange="calcLatency()">
+        </div>
+
+        <div class="controls">
+            <button class="btn active" onclick="setQuant('fp16')">FP16</button>
+            <button class="btn" onclick="setQuant('int8')">INT8</button>
+            <button class="btn" onclick="setQuant('int4')">INT4</button>
+        </div>
+
+        <div class="viz-area" id="latency-result"></div>
+    </div>
+
+    <!-- Comparison -->
+    <div class="section">
+        <h2>Serving Framework Comparison</h2>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Framework</th>
+                    <th>Continuous Batching</th>
+                    <th>Paged Attention</th>
+                    <th>Speculative Decoding</th>
+                    <th>Quantization</th>
+                    <th>Best For</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>vLLM</strong></td>
+                    <td class="good">✓</td>
+                    <td class="good">✓</td>
+                    <td class="good">✓</td>
+                    <td class="good">GPTQ, AWQ</td>
+                    <td>Production serving</td>
+                </tr>
+                <tr>
+                    <td><strong>TGI</strong></td>
+                    <td class="good">✓</td>
+                    <td class="good">✓</td>
+                    <td class="medium">Partial</td>
+                    <td class="good">GPTQ, bitsandbytes</td>
+                    <td>HuggingFace ecosystem</td>
+                </tr>
+                <tr>
+                    <td><strong>TensorRT-LLM</strong></td>
+                    <td class="good">✓</td>
+                    <td class="good">✓</td>
+                    <td class="good">✓</td>
+                    <td class="good">FP8, INT4</td>
+                    <td>Maximum performance</td>
+                </tr>
+                <tr>
+                    <td><strong>SGLang</strong></td>
+                    <td class="good">✓</td>
+                    <td class="good">✓</td>
+                    <td class="good">✓</td>
+                    <td class="good">GPTQ, AWQ</td>
+                    <td>Structured generation</td>
+                </tr>
+                <tr>
+                    <td><strong>llama.cpp</strong></td>
+                    <td class="medium">Limited</td>
+                    <td class="bad">✗</td>
+                    <td class="good">✓</td>
+                    <td class="good">GGUF</td>
+                    <td>CPU/Edge inference</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+    // ═══════════════════════════════════════════════════════════
+    // TOKEN GENERATION
+    // ═══════════════════════════════════════════════════════════
+    const sampleTokens = [
+        'The', ' quick', ' brown', ' fox', ' jumps', ' over', ' the', ' lazy', ' dog', '.',
+        ' It', ' was', ' a', ' beautiful', ' day', ' in', ' the', ' neighborhood', '.',
+        ' The', ' sun', ' was', ' shining', ' brightly', ' through', ' the', ' trees', '.',
+        ' Birds', ' were', ' singing', ' their', ' morning', ' songs', ' in', ' the', ' branches', '.',
+        ' A', ' gentle', ' breeze', ' carried', ' the', ' scent', ' of', ' fresh', ' flowers', '.',
+    ];
+
+    let tokenIndex = 0;
+    let genInterval = null;
+    let tps = 30;
+
+    const TOKEN_COLORS = [
+        '#06b6d4', '#7c3aed', '#10b981', '#f59e0b', '#f43f5e',
+        '#8b5cf6', '#14b8a6', '#f97316', '#ec4899', '#10b981',
+    ];
+
+    function updateTPS() {
+        tps = parseInt(document.getElementById('tps').value);
+        document.getElementById('tps-val').textContent = tps;
+        if (genInterval) {
+            clearInterval(genInterval);
+            genInterval = setInterval(addToken, 1000 / tps);
+        }
+    }
+
+    function addToken() {
+        const stream = document.getElementById('token-stream');
+        const token = sampleTokens[tokenIndex % sampleTokens.length];
+        const color = TOKEN_COLORS[tokenIndex % TOKEN_COLORS.length];
+
+        const span = document.createElement('span');
+        span.className = 'token';
+        span.textContent = token;
+        span.style.background = color + '30';
+        span.style.border = `1px solid ${color}50`;
+        span.style.color = color;
+        stream.appendChild(span);
+
+        tokenIndex++;
+
+        // Keep only last 30 tokens
+        if (stream.children.length > 30) {
+            stream.removeChild(stream.firstChild);
+        }
+    }
+
+    function startGeneration() {
+        if (genInterval) return;
+        genInterval = setInterval(addToken, 1000 / tps);
+    }
+
+    function stopGeneration() {
+        clearInterval(genInterval);
+        genInterval = null;
+    }
+
+    function resetGeneration() {
+        stopGeneration();
+        tokenIndex = 0;
+        document.getElementById('token-stream').innerHTML = '';
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // LATENCY CALCULATOR
+    // ═══════════════════════════════════════════════════════════
+    const MODEL_SIZES = [
+        { name: '1.3B', params: 1.3e9, layers: 24, heads: 16 },
+        { name: '7B', params: 7e9, layers: 32, heads: 32 },
+        { name: '13B', params: 13e9, layers: 40, heads: 40 },
+        { name: '70B', params: 70e9, layers: 80, heads: 64 },
+        { name: '405B', params: 405e9, layers: 126, heads: 128 },
+    ];
+
+    let currentQuant = 'fp16';
+
+    function setQuant(q) {
+        currentQuant = q;
+        document.querySelectorAll('.controls .btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        calcLatency();
+    }
+
+    function calcLatency() {
+        const modelIdx = parseInt(document.getElementById('model-size').value);
+        const seqLen = parseInt(document.getElementById('seq-len').value);
+        const batchSize = parseInt(document.getElementById('batch').value);
+
+        const model = MODEL_SIZES[modelIdx];
+        document.getElementById('model-size-val').textContent = model.name;
+        document.getElementById('seq-len-val').textContent = seqLen;
+        document.getElementById('batch-val').textContent = batchSize;
+
+        // Simplified latency estimation
+        const bytesPerParam = currentQuant === 'fp16' ? 2 : currentQuant === 'int8' ? 1 : 0.5;
+        const memoryGB = model.params * bytesPerParam / 1e9;
+
+        // Compute time (simplified)
+        const flopsPerToken = 2 * model.params; // Approximate
+        const gpuTflops = 300; // A100
+        const computeTime = flopsPerToken / (gpuTflops * 1e12) * 1000; // ms
+
+        // Memory bandwidth
+        const gpuBandwidth = 2000; // GB/s for A100
+        const memoryTime = memoryGB * 1000 / gpuBandwidth; // ms per token
+
+        // Prefill vs decode
+        const prefillTime = computeTime * seqLen / batchSize;
+        const decodeTime = Math.max(computeTime, memoryTime);
+
+        // With optimizations
+        const flashAttnSpeedup = 2;
+        const quantSpeedup = currentQuant === 'int4' ? 2 : currentQuant === 'int8' ? 1.5 : 1;
+        const batchSpeedup = Math.min(batchSize, 8) * 0.5 + 0.5;
+
+        const result = document.getElementById('latency-result');
+        result.innerHTML = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.85rem;">Model Memory</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-cyan);">${memoryGB.toFixed(1)} GB</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.85rem;">Prefill Time</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-violet);">${prefillTime.toFixed(1)} ms</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.85rem;">Decode Time (per token)</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-emerald);">${decodeTime.toFixed(2)} ms</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.85rem;">Tokens/sec</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-amber);">${(1000 / decodeTime).toFixed(0)}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Initialize
+    calcLatency();
+</script>
+
+</body>
+</html>

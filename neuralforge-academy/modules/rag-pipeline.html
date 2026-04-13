@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 2.2: The RAG Pipeline — NeuralForge Academy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        :root { --bg-void: #030712; --bg-surface: #0a0f1e; --bg-panel: #0f172a; --accent-cyan: #06b6d4; --accent-violet: #7c3aed; --accent-emerald: #10b981; --accent-amber: #f59e0b; --accent-rose: #f43f5e; --text-primary: #f1f5f9; --text-secondary: #94a3b8; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-void); color: var(--text-primary); line-height: 1.7; }
+        .topbar { position: fixed; top: 0; left: 0; width: 100%; height: 60px; background: rgba(3,7,18,0.95); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 100; display: flex; align-items: center; padding: 0 20px; }
+        .topbar a { color: var(--accent-cyan); text-decoration: none; font-size: 0.9rem; }
+        .topbar .breadcrumb { color: var(--text-secondary); margin-left: 16px; }
+        .topbar .breadcrumb span { color: var(--accent-emerald); }
+        .module-header { padding: 100px 40px 40px; max-width: 1200px; margin: 0 auto; }
+        .module-badge { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; padding: 4px 12px; border-radius: 20px; background: rgba(16,185,129,0.2); color: var(--accent-emerald); border: 1px solid var(--accent-emerald); margin-bottom: 16px; }
+        .module-title { font-family: 'Space Grotesk', sans-serif; font-size: 3rem; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; }
+        .module-subtitle { font-size: 1.2rem; color: var(--text-secondary); max-width: 800px; }
+        .module-meta { display: flex; gap: 24px; margin-top: 24px; flex-wrap: wrap; }
+        .meta-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-secondary); }
+        .content { max-width: 1200px; margin: 0 auto; padding: 40px; }
+        .section { margin-bottom: 60px; }
+        .section-title { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--accent-emerald); margin-bottom: 20px; }
+        .section h3 { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 600; color: var(--text-primary); margin: 24px 0 12px; }
+        .section p { color: var(--text-secondary); margin-bottom: 16px; font-size: 1.05rem; }
+        .canvas-container { width: 100%; height: 500px; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0; position: relative; }
+        .canvas-container canvas { width: 100%; height: 100%; }
+        .canvas-label { position: absolute; bottom: 16px; left: 16px; background: rgba(3,7,18,0.8); padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); }
+        .analogy { background: rgba(6,182,212,0.1); border-left: 3px solid var(--accent-cyan); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+        .info-box { padding: 20px; border-radius: 12px; margin: 20px 0; }
+        .info-box.solution { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); }
+        .info-box.solution h4 { color: var(--accent-emerald); }
+        .code-block { background: var(--bg-void); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; overflow-x: auto; margin: 20px 0; }
+        .code-block .comment { color: #6b7280; }
+        .code-block .keyword { color: var(--accent-violet); }
+        .code-block .string { color: var(--accent-emerald); }
+        .code-block .number { color: var(--accent-amber); }
+        .sim-controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+        .sim-btn { padding: 10px 20px; border: 1px solid var(--accent-emerald); background: transparent; color: var(--accent-emerald); border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
+        .sim-btn:hover, .sim-btn.active { background: var(--accent-emerald); color: var(--bg-void); }
+        .slider-group { margin: 16px 0; }
+        .slider-group label { display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9rem; }
+        .slider-group input[type="range"] { width: 100%; accent-color: var(--accent-emerald); }
+
+        /* Pipeline stages */
+        .pipeline { display: flex; gap: 8px; align-items: center; margin: 20px 0; flex-wrap: wrap; justify-content: center; }
+        .pipeline-stage { padding: 12px 20px; border-radius: 12px; font-weight: 600; text-align: center; min-width: 140px; cursor: pointer; transition: all 0.3s; }
+        .pipeline-stage:hover { transform: scale(1.05); }
+        .pipeline-stage.ingestion { background: rgba(6,182,212,0.2); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); }
+        .pipeline-stage.embedding { background: rgba(124,58,237,0.2); border: 1px solid var(--accent-violet); color: var(--accent-violet); }
+        .pipeline-stage.indexing { background: rgba(16,185,129,0.2); border: 1px solid var(--accent-emerald); color: var(--accent-emerald); }
+        .pipeline-stage.retrieval { background: rgba(245,158,11,0.2); border: 1px solid var(--accent-amber); color: var(--accent-amber); }
+        .pipeline-stage.generation { background: rgba(244,63,94,0.2); border: 1px solid var(--accent-rose); color: var(--accent-rose); }
+        .pipeline-arrow { font-size: 1.5rem; color: var(--text-secondary); }
+
+        /* Chunking demo */
+        .chunk-ribbon { display: flex; gap: 4px; margin: 20px 0; flex-wrap: wrap; }
+        .chunk { padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; transition: all 0.3s; cursor: pointer; }
+        .chunk:hover { transform: scale(1.05); }
+        .chunk.type-fixed { background: rgba(6,182,212,0.2); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); }
+        .chunk.type-sentence { background: rgba(124,58,237,0.2); border: 1px solid var(--accent-violet); color: var(--accent-violet); }
+        .chunk.type-semantic { background: rgba(16,185,129,0.2); border: 1px solid var(--accent-emerald); color: var(--accent-emerald); }
+
+        /* Results */
+        .result-card { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; margin: 16px 0; }
+        .result-card .score { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; }
+        .result-card .score.high { color: var(--accent-emerald); }
+        .result-card .score.medium { color: var(--accent-amber); }
+        .result-card .score.low { color: var(--accent-rose); }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <a href="../index.html">← NeuralForge Academy</a>
+        <div class="breadcrumb"><span>Track 2: RAG</span> → Module 2.2: The RAG Pipeline</div>
+    </div>
+
+    <div class="module-header">
+        <div class="module-badge">TRACK 2 · MODULE 2.2</div>
+        <h1 class="module-title">The Complete RAG Pipeline</h1>
+        <p class="module-subtitle">
+            Build a Retrieval-Augmented Generation system from scratch. See every stage
+            from document ingestion to grounded generation.
+        </p>
+        <div class="module-meta">
+            <div class="meta-item">⏱️ 3 hours</div>
+            <div class="meta-item">🎯 12 Simulations</div>
+            <div class="meta-item">📊 Expert Level</div>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <!-- Pipeline Overview -->
+        <div class="section">
+            <h2 class="section-title">🏭 The RAG Pipeline Factory</h2>
+            <p>
+                A RAG system has two main pipelines: Ingestion (offline) and Query (online).
+                Documents flow through ingestion to build a knowledge base.
+                Questions flow through query to generate grounded answers.
+            </p>
+
+            <div class="canvas-container" id="rag-canvas">
+                <div class="canvas-label">🖱️ Click any stage to see details</div>
+            </div>
+
+            <h3>Ingestion Pipeline (Offline)</h3>
+            <div class="pipeline">
+                <div class="pipeline-stage ingestion">📄 Load</div>
+                <div class="pipeline-arrow">→</div>
+                <div class="pipeline-stage ingestion">🧹 Clean</div>
+                <div class="pipeline-arrow">→</div>
+                <div class="pipeline-stage embedding">✂️ Chunk</div>
+                <div class="pipeline-arrow">→</div>
+                <div class="pipeline-stage embedding">🧠 Embed</div>
+                <div class="pipeline-arrow">→</div>
+                <div class="pipeline-stage indexing">💾 Index</div>
+            </div>
+
+            <h3>Query Pipeline (Online)</h3>
+            <div class="pipeline">
+                <div class="pipeline-stage retrieval">❓ Query</div>
+                <div class="pipeline-arrow">→</div>
+                <div class="pipeline-stage retrieval">🔍 Retrieve</div>
+                <div class="pipeline-arrow">→</div>
+                <div class="pipeline-stage retrieval">📊 Rerank</div>
+                <div class="pipeline-arrow">→</div>
+                <div class="pipeline-stage generation">🤖 Generate</div>
+                <div class="pipeline-arrow">→</div>
+                <div class="pipeline-stage generation">📝 Cite</div>
+            </div>
+        </div>
+
+        <!-- Chunking Strategies -->
+        <div class="section">
+            <h2 class="section-title">✂️ Chunking Strategies</h2>
+            <p>
+                How you split documents into chunks dramatically affects retrieval quality.
+                Different strategies have different tradeoffs.
+            </p>
+
+            <div class="sim-controls">
+                <button class="sim-btn active" onclick="setChunkStrategy('fixed')">Fixed-Size</button>
+                <button class="sim-btn" onclick="setChunkStrategy('sentence')">Sentence</button>
+                <button class="sim-btn" onclick="setChunkStrategy('semantic')">Semantic</button>
+            </div>
+
+            <div class="slider-group">
+                <label>Chunk Size: <span id="chunk-size-val">128</span> tokens</label>
+                <input type="range" id="chunk-size" min="32" max="512" value="128" step="32" onchange="updateChunks()">
+            </div>
+
+            <div class="slider-group">
+                <label>Overlap: <span id="overlap-val">20</span>%</label>
+                <input type="range" id="overlap" min="0" max="50" value="20" step="5" onchange="updateChunks()">
+            </div>
+
+            <div class="chunk-ribbon" id="chunk-ribbon"></div>
+
+            <div id="chunk-metrics" style="margin-top: 20px;"></div>
+        </div>
+
+        <!-- Embedding Visualization -->
+        <div class="section">
+            <h2 class="section-title">🧠 Embedding Space</h2>
+            <p>
+                Each chunk is converted to a vector. Similar chunks cluster together.
+                The query vector finds nearest neighbors.
+            </p>
+
+            <div class="canvas-container" id="embedding-canvas" style="height: 400px;">
+                <div class="canvas-label">Chunks in embedding space (colored by topic)</div>
+            </div>
+        </div>
+
+        <!-- Retrieval Demo -->
+        <div class="section">
+            <h2 class="section-title">🔍 Interactive Retrieval</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                Type a question and watch the retrieval process in action.
+            </p>
+
+            <div style="display: flex; gap: 12px; margin: 20px 0;">
+                <input type="text" id="query-input" placeholder="Ask a question..." style="flex: 1; padding: 12px 16px; background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: var(--text-primary); font-size: 1rem;">
+                <button class="sim-btn" onclick="runRetrieval()">🔍 Retrieve</button>
+            </div>
+
+            <div class="slider-group">
+                <label>Top-K Results: <span id="top-k-val">3</span></label>
+                <input type="range" id="top-k" min="1" max="10" value="3" onchange="updateTopK()">
+            </div>
+
+            <div id="retrieval-results"></div>
+        </div>
+
+        <!-- Code Implementation -->
+        <div class="section">
+            <h2 class="section-title">💻 RAG from Scratch</h2>
+
+            <div class="code-block">
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+<span class="keyword">from</span> sentence_transformers <span class="keyword">import</span> SentenceTransformer
+<span class="keyword">import</span> faiss
+
+<span class="keyword">class</span> <span class="string">SimpleRAG</span>:
+    <span class="string">"""RAG from scratch — no LangChain, pure fundamentals."""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, embedding_model=<span class="string">"all-MiniLM-L6-v2"</span>):
+        self.embedder = SentenceTransformer(embedding_model)
+        self.dim = <span class="number">384</span>
+        self.index = faiss.IndexFlatIP(self.dim)
+        self.chunks = []
+
+    <span class="keyword">def</span> <span class="function">ingest</span>(self, documents, chunk_size=<span class="number">256</span>):
+        <span class="string">"""Chunk, embed, and index documents."""</span>
+        all_chunks = []
+        <span class="keyword">for</span> doc <span class="keyword">in</span> documents:
+            words = doc.split()
+            <span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">0</span>, len(words), chunk_size // <span class="number">2</span>):
+                chunk = <span class="string">" "</span>.join(words[i : i + chunk_size])
+                <span class="keyword">if</span> chunk:
+                    all_chunks.append(chunk)
+
+        embeddings = self.embedder.encode(all_chunks, normalize_embeddings=<span class="keyword">True</span>)
+        self.index.add(embeddings.astype(np.float32))
+        self.chunks.extend(all_chunks)
+
+    <span class="keyword">def</span> <span class="function">retrieve</span>(self, query, k=<span class="number">3</span>):
+        <span class="string">"""Find top-k relevant chunks."""</span>
+        query_emb = self.embedder.encode([query], normalize_embeddings=<span class="keyword">True</span>)
+        distances, indices = self.index.search(query_emb.astype(np.float32), k)
+        <span class="keyword">return</span> [(self.chunks[i], float(d)) <span class="keyword">for</span> d, i <span class="keyword">in</span> zip(distances[<span class="number">0</span>], indices[<span class="number">0</span>])]
+
+    <span class="keyword">def</span> <span class="function">generate</span>(self, query, k=<span class="number">3</span>):
+        <span class="string">"""Full RAG: retrieve + generate."""</span>
+        retrieved = self.retrieve(query, k)
+        context = <span class="string">"\n\n"</span>.join([c <span class="keyword">for</span> c, _ <span class="keyword">in</span> retrieved])
+        prompt = f<span class="string">"""Answer based ONLY on this context:
+{context}
+
+Question: {query}
+Answer:"""</span>
+        <span class="keyword">return</span> prompt
+            </div>
+        </div>
+
+        <!-- Evaluation -->
+        <div class="section">
+            <h2 class="section-title">📊 RAG Evaluation</h2>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 20px 0;">
+                <div style="background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);">
+                    <h4 style="color: var(--accent-emerald);">Faithfulness</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                        Is the answer supported by retrieved context? Measures hallucination.
+                    </p>
+                </div>
+                <div style="background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid rgba(6,182,212,0.3);">
+                    <h4 style="color: var(--accent-cyan);">Context Precision</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                        Are retrieved docs actually relevant? Measures retrieval quality.
+                    </p>
+                </div>
+                <div style="background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid rgba(124,58,237,0.3);">
+                    <h4 style="color: var(--accent-violet);">Context Recall</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                        Were all relevant docs retrieved? Measures coverage.
+                    </p>
+                </div>
+                <div style="background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid rgba(245,158,11,0.3);">
+                    <h4 style="color: var(--accent-amber);">Answer Relevance</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                        Does the answer address the question? Measures usefulness.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Three.js: RAG Pipeline Visualization -->
+    <script>
+        const ragCanvas = document.getElementById('rag-canvas');
+        const ragRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        ragRenderer.setSize(ragCanvas.clientWidth, ragCanvas.clientHeight);
+        ragRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        ragCanvas.insertBefore(ragRenderer.domElement, ragCanvas.firstChild);
+
+        const ragScene = new THREE.Scene();
+        ragScene.background = new THREE.Color(0x030712);
+        ragScene.fog = new THREE.FogExp2(0x030712, 0.015);
+
+        const ragCamera = new THREE.PerspectiveCamera(60, ragCanvas.clientWidth / ragCanvas.clientHeight, 0.1, 1000);
+        ragCamera.position.set(0, 8, 20);
+
+        // Pipeline stations
+        const STATION_COLORS = [0x06b6d4, 0x7c3aed, 0x10b981, 0xf59e0b, 0xf43f5e];
+        const stations = [];
+        const stationNames = ['Load', 'Chunk', 'Embed', 'Index', 'Retrieve'];
+
+        STATION_COLORS.forEach((color, i) => {
+            const group = new THREE.Group();
+
+            // Main box
+            const geometry = new THREE.BoxGeometry(2.5, 3, 2);
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.7,
+                metalness: 0.3,
+                roughness: 0.4,
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            group.add(mesh);
+
+            // Glow edges
+            const edges = new THREE.EdgesGeometry(geometry);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.5 });
+            const wireframe = new THREE.LineSegments(edges, lineMaterial);
+            group.add(wireframe);
+
+            // Position
+            group.position.x = -8 + i * 4;
+            group.position.y = 0;
+            group.userData = { stationIndex: i, baseColor: color };
+
+            ragScene.add(group);
+            stations.push(group);
+        });
+
+        // Conveyor belt
+        const beltGeometry = new THREE.BoxGeometry(25, 0.1, 1.5);
+        const beltMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, metalness: 0.5 });
+        const belt = new THREE.Mesh(beltGeometry, beltMaterial);
+        belt.position.y = -1.8;
+        ragScene.add(belt);
+
+        // Data particles
+        const particleCount = 30;
+        const particleGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+        const particles = [];
+
+        for (let i = 0; i < particleCount; i++) {
+            const color = STATION_COLORS[i % STATION_COLORS.length];
+            const material = new THREE.MeshBasicMaterial({ color });
+            const particle = new THREE.Mesh(particleGeometry, material);
+            particle.position.set(-12 + Math.random() * 24, -1.5, Math.random() - 0.5);
+            particle.userData = { speed: 0.02 + Math.random() * 0.03 };
+            ragScene.add(particle);
+            particles.push(particle);
+        }
+
+        // Lighting
+        ragScene.add(new THREE.AmbientLight(0x404040, 0.5));
+        const ragLight = new THREE.PointLight(0x10b981, 1, 50);
+        ragLight.position.set(5, 10, 5);
+        ragScene.add(ragLight);
+
+        // Mouse interaction
+        let rMouseX = 0, rMouseY = 0;
+        ragCanvas.addEventListener('mousemove', (e) => {
+            const rect = ragCanvas.getBoundingClientRect();
+            rMouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            rMouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        });
+
+        // Animation
+        function animateRAG() {
+            requestAnimationFrame(animateRAG);
+            const time = Date.now() * 0.001;
+
+            // Rotate stations
+            stations.forEach((station, i) => {
+                station.rotation.y = Math.sin(time + i * 0.5) * 0.1;
+                station.position.y = Math.sin(time * 0.5 + i * 0.3) * 0.2;
+            });
+
+            // Move particles
+            particles.forEach(p => {
+                p.position.x += p.userData.speed;
+                if (p.position.x > 12) p.position.x = -12;
+                p.position.y = -1.5 + Math.sin(time * 2 + p.position.x) * 0.2;
+            });
+
+            // Camera parallax
+            ragCamera.position.x += (rMouseX * 3 - ragCamera.position.x) * 0.02;
+            ragCamera.position.y += (rMouseY * 2 + 8 - ragCamera.position.y) * 0.02;
+            ragCamera.lookAt(0, 0, 0);
+
+            ragRenderer.render(ragScene, ragCamera);
+        }
+        animateRAG();
+
+        // Chunk strategy
+        let currentStrategy = 'fixed';
+        const sampleText = "The Transformer architecture revolutionized natural language processing. Self-attention mechanisms allow the model to weigh the importance of different parts of the input. Multi-head attention enables the model to attend to information from different representation subspaces at different positions. The feed-forward network processes each position independently.";
+
+        function setChunkStrategy(strategy) {
+            currentStrategy = strategy;
+            document.querySelectorAll('.sim-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            updateChunks();
+        }
+
+        function updateChunks() {
+            const chunkSize = parseInt(document.getElementById('chunk-size').value);
+            const overlap = parseInt(document.getElementById('overlap').value);
+            document.getElementById('chunk-size-val').textContent = chunkSize;
+            document.getElementById('overlap-val').textContent = overlap;
+
+            const ribbon = document.getElementById('chunk-ribbon');
+            ribbon.innerHTML = '';
+
+            const words = sampleText.split();
+            const step = Math.floor(chunkSize * (1 - overlap / 100));
+
+            for (let i = 0; i < words.length; i += step) {
+                const chunkWords = words.slice(i, i + chunkSize);
+                const chunkText = chunkWords.join(' ');
+
+                const div = document.createElement('div');
+                div.className = `chunk type-${currentStrategy}`;
+                div.textContent = chunkText.substring(0, 50) + '...';
+                div.title = chunkText;
+                ribbon.appendChild(div);
+            }
+
+            // Metrics
+            const numChunks = Math.ceil(words.length / step);
+            const metrics = document.getElementById('chunk-metrics');
+            metrics.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                    <div style="background: var(--bg-surface); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-cyan);">${numChunks}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Chunks</div>
+                    </div>
+                    <div style="background: var(--bg-surface); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-violet);">${chunkSize}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Avg Size</div>
+                    </div>
+                    <div style="background: var(--bg-surface); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-emerald);">${overlap}%</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Overlap</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Retrieval demo
+        function updateTopK() {
+            document.getElementById('top-k-val').textContent = document.getElementById('top-k').value;
+        }
+
+        function runRetrieval() {
+            const query = document.getElementById('query-input').value;
+            if (!query) return;
+
+            const results = document.getElementById('retrieval-results');
+            const k = parseInt(document.getElementById('top-k').value);
+
+            // Simulated results
+            const chunks = [
+                { text: "The Transformer architecture uses self-attention...", score: 0.95 },
+                { text: "Multi-head attention enables parallel processing...", score: 0.89 },
+                { text: "Feed-forward networks process each position...", score: 0.82 },
+                { text: "Layer normalization stabilizes training...", score: 0.76 },
+                { text: "Positional encoding injects sequence order...", score: 0.71 },
+            ];
+
+            results.innerHTML = chunks.slice(0, k).map((c, i) => `
+                <div class="result-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Result ${i + 1}</div>
+                        <div class="score ${c.score > 0.8 ? 'high' : c.score > 0.6 ? 'medium' : 'low'}">${c.score.toFixed(2)}</div>
+                    </div>
+                    <p style="margin-top: 8px; color: var(--text-primary);">${c.text}</p>
+                </div>
+            `).join('');
+        }
+
+        // Initialize chunks
+        updateChunks();
+
+        // Resize
+        window.addEventListener('resize', () => {
+            ragCamera.aspect = ragCanvas.clientWidth / ragCanvas.clientHeight;
+            ragCamera.updateProjectionMatrix();
+            ragRenderer.setSize(ragCanvas.clientWidth, ragCanvas.clientHeight);
+        });
+    </script>
+
+</body>
+</html>

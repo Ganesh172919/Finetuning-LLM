@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RWKV-v6 Architecture Explorer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; overflow-x: hidden; }
+
+/* Header */
+.header { padding: 20px 40px; background: linear-gradient(135deg, #1a0a2e, #0a1628); border-bottom: 1px solid #2a2a4a; display: flex; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 24px; background: linear-gradient(90deg, #7c4dff, #448aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.header .subtitle { font-size: 12px; color: #888; margin-top: 4px; }
+
+/* Main layout */
+.main { display: grid; grid-template-columns: 320px 1fr 300px; height: calc(100vh - 70px); }
+
+/* Left panel - Controls */
+.panel { padding: 20px; overflow-y: auto; border-right: 1px solid #1a1a3a; background: #0d0d1d; }
+.panel h3 { font-size: 14px; color: #7c4dff; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+.control-group { margin-bottom: 16px; }
+.control-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 6px; }
+.control-group input[type="range"] { width: 100%; accent-color: #7c4dff; }
+.control-group .value { font-size: 11px; color: #7c4dff; float: right; }
+select, button { background: #1a1a3a; color: #e0e0e0; border: 1px solid #2a2a4a; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+select:hover, button:hover { border-color: #7c4dff; }
+button.primary { background: linear-gradient(135deg, #7c4dff, #448aff); border: none; color: white; font-weight: 600; }
+button.primary:hover { opacity: 0.9; }
+
+/* Center - 3D Canvas */
+.canvas-container { position: relative; background: #08081a; }
+canvas { display: block; width: 100%; height: 100%; }
+.canvas-overlay { position: absolute; top: 10px; left: 10px; font-size: 11px; color: #666; pointer-events: none; }
+.tooltip { position: absolute; background: rgba(20,20,40,0.95); border: 1px solid #7c4dff; border-radius: 8px; padding: 12px; font-size: 12px; pointer-events: none; display: none; max-width: 280px; z-index: 10; }
+.tooltip h4 { color: #7c4dff; margin-bottom: 6px; }
+
+/* Right panel - Info */
+.info-panel { padding: 20px; overflow-y: auto; border-left: 1px solid #1a1a3a; background: #0d0d1d; }
+.info-panel h3 { font-size: 14px; color: #448aff; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+.metric { background: #1a1a3a; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+.metric .label { font-size: 11px; color: #888; }
+.metric .value { font-size: 20px; font-weight: 700; color: #7c4dff; margin-top: 4px; }
+.metric .subtext { font-size: 10px; color: #666; margin-top: 2px; }
+
+/* Component details */
+.component-list { list-style: none; }
+.component-list li { padding: 8px 12px; margin-bottom: 4px; background: #1a1a3a; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; border-left: 3px solid transparent; }
+.component-list li:hover { border-left-color: #7c4dff; background: #2a2a4a; }
+.component-list li.active { border-left-color: #7c4dff; background: #2a2a4a; }
+.component-list li .icon { margin-right: 8px; }
+
+/* Flow visualization */
+.flow-diagram { margin-top: 16px; padding: 16px; background: #1a1a3a; border-radius: 8px; }
+.flow-step { display: flex; align-items: center; margin-bottom: 8px; }
+.flow-step .num { width: 24px; height: 24px; border-radius: 50%; background: #7c4dff; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; margin-right: 10px; flex-shrink: 0; }
+.flow-step .desc { font-size: 12px; color: #ccc; }
+.flow-arrow { text-align: center; color: #444; font-size: 14px; margin: 2px 0; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.tab { padding: 6px 12px; font-size: 12px; border-radius: 4px; cursor: pointer; background: transparent; border: 1px solid #2a2a4a; color: #888; }
+.tab.active { background: #7c4dff; border-color: #7c4dff; color: white; }
+
+/* Code block */
+.code-block { background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 6px; padding: 12px; font-family: 'Fira Code', monospace; font-size: 11px; line-height: 1.6; overflow-x: auto; margin-top: 8px; color: #ccc; }
+.code-block .kw { color: #c678dd; }
+.code-block .fn { color: #61afef; }
+.code-block .str { color: #98c379; }
+.code-block .num { color: #d19a66; }
+.code-block .cmt { color: #5c6370; font-style: italic; }
+
+/* Animations */
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes flow { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+.animated { animation: pulse 2s infinite; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>RWKV-v6 Architecture Explorer</h1>
+        <div class="subtitle">Receptance Weighted Key Value — Linear Attention RNN</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <button onclick="toggleAnimation()" id="animBtn">Pause</button>
+        <button class="primary" onclick="resetView()">Reset View</button>
+    </div>
+</div>
+
+<div class="main">
+    <!-- Left Panel: Controls -->
+    <div class="panel">
+        <h3>Configuration</h3>
+
+        <div class="control-group">
+            <label>Model Dimension (d_model) <span class="value" id="dimVal">512</span></label>
+            <input type="range" id="dModel" min="64" max="2048" step="64" value="512" oninput="updateConfig()">
+        </div>
+
+        <div class="control-group">
+            <label>Number of Layers <span class="value" id="layerVal">12</span></label>
+            <input type="range" id="nLayers" min="1" max="32" value="12" oninput="updateConfig()">
+        </div>
+
+        <div class="control-group">
+            <label>Attention Heads <span class="value" id="headVal">8</span></label>
+            <input type="range" id="nHeads" min="1" max="32" value="8" oninput="updateConfig()">
+        </div>
+
+        <div class="control-group">
+            <label>FFN Expansion <span class="value" id="ffnVal">4x</span></label>
+            <input type="range" id="ffnMult" min="2" max="8" value="4" oninput="updateConfig()">
+        </div>
+
+        <div class="control-group">
+            <label>Vocabulary Size <span class="value" id="vocabVal">32000</span></label>
+            <input type="range" id="vocabSize" min="1000" max="100000" step="1000" value="32000" oninput="updateConfig()">
+        </div>
+
+        <h3 style="margin-top:24px;">Visualization</h3>
+
+        <div class="control-group">
+            <label>View Mode</label>
+            <select id="viewMode" onchange="changeView()">
+                <option value="architecture">Full Architecture</option>
+                <option value="time-mixing">Time Mixing (WKV)</option>
+                <option value="channel-mixing">Channel Mixing</option>
+                <option value="data-flow">Data Flow</option>
+                <option value="comparison">vs Transformer</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Animation Speed <span class="value" id="speedVal">1x</span></label>
+            <input type="range" id="animSpeed" min="0.1" max="3" step="0.1" value="1" oninput="updateSpeed()">
+        </div>
+
+        <h3 style="margin-top:24px;">RWKV Components</h3>
+        <ul class="component-list">
+            <li class="active" onclick="selectComponent('token-shift')"><span class="icon">🔄</span>Token Shift</li>
+            <li onclick="selectComponent('time-mixing')"><span class="icon">⏰</span>Time Mixing (WKV)</li>
+            <li onclick="selectComponent('channel-mixing')"><span class="icon">🔀</span>Channel Mixing</li>
+            <li onclick="selectComponent('lora-time')"><span class="icon">📐</span>LoRA Time Decay</li>
+            <li onclick="selectComponent('receptance')"><span class="icon">🎯</span>Receptance Gate</li>
+            <li onclick="selectComponent('output')"><span class="icon">📤</span>Output Projection</li>
+        </ul>
+    </div>
+
+    <!-- Center: 3D Canvas -->
+    <div class="canvas-container">
+        <canvas id="canvas3d"></canvas>
+        <div class="canvas-overlay" id="canvasInfo">Drag to rotate · Scroll to zoom · Click components for details</div>
+        <div class="tooltip" id="tooltip"></div>
+    </div>
+
+    <!-- Right Panel: Info -->
+    <div class="info-panel">
+        <h3>Model Statistics</h3>
+
+        <div class="metric">
+            <div class="label">Total Parameters</div>
+            <div class="value" id="totalParams">67M</div>
+            <div class="subtext">Embeddings + Layers + Head</div>
+        </div>
+
+        <div class="metric">
+            <div class="label">Memory (FP16)</div>
+            <div class="value" id="memory">134 MB</div>
+            <div class="subtext">2 bytes per parameter</div>
+        </div>
+
+        <div class="metric">
+            <div class="label">FLOPs per Token</div>
+            <div class="value" id="flops">2.1B</div>
+            <div class="subtext">≈ 2 × parameters</div>
+        </div>
+
+        <div class="metric">
+            <div class="label">KV Cache per Token</div>
+            <div class="value" id="kvCache">0</div>
+            <div class="subtext">RNN: no KV cache needed!</div>
+        </div>
+
+        <div class="metric">
+            <div class="label">Inference Complexity</div>
+            <div class="value" style="font-size:16px;">O(1) per token</div>
+            <div class="subtext">Constant state, not growing KV</div>
+        </div>
+
+        <h3 style="margin-top:20px;">Component Details</h3>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('formula')">Formula</div>
+            <div class="tab" onclick="switchTab('code')">Code</div>
+            <div class="tab" onclick="switchTab('flow')">Flow</div>
+        </div>
+
+        <div id="tab-formula">
+            <div class="code-block" id="formulaBlock">
+<span class="cmt"># WKV (Weighted Key-Value) Mechanism</span>
+<span class="cmt"># The core innovation of RWKV</span>
+
+wkv(t) = Σ_{i=1}^{t-1} e^{-(t-1-i)w + k_i} · v_i + e^{u+k_t} · v_t
+         ─────────────────────────────────────────────────────────
+         Σ_{i=1}^{t-1} e^{-(t-1-i)w + k_i} + e^{u+k_t}}
+
+<span class="cmt"># Where:</span>
+<span class="cmt">#   w = learned time decay (per-channel)</span>
+<span class="cmt">#   u = bonus for current token</span>
+<span class="cmt">#   k = key projection</span>
+<span class="cmt">#   v = value projection</span>
+            </div>
+        </div>
+
+        <div id="tab-code" style="display:none;">
+            <div class="code-block" id="codeBlock">
+<span class="kw">def</span> <span class="fn">wkv_forward</span>(self, k, v, state):
+    <span class="str">"""WKV computation with linear complexity."""</span>
+    <span class="cmt"># Extract time decay and bonus</span>
+    w = self.time_decay   <span class="cmt"># (d_heads,)</span>
+    u = self.time_bonus   <span class="cmt"># (d_heads,)</span>
+
+    <span class="cmt"># LoRA-based per-token time decay</span>
+    td = self.lora_td(k)  <span class="cmt"># (B, T, H)</span>
+
+    <span class="cmt"># Update state (RNN step)</span>
+    alpha = torch.exp(-w + td)
+    state = state * alpha + torch.exp(k) * v
+
+    <span class="cmt"># Compute output</span>
+    num = state + torch.exp(u + k) * v
+    den = state.sum(-1) + torch.exp(u + k)
+    <span class="kw">return</span> num / den
+            </div>
+        </div>
+
+        <div id="tab-flow" style="display:none;">
+            <div class="flow-diagram">
+                <div class="flow-step"><div class="num">1</div><div class="desc">Input token x_t</div></div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-step"><div class="num">2</div><div class="desc">Token Shift: blend x_t with x_{t-1}</div></div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-step"><div class="num">3</div><div class="desc">Project to r, k, v</div></div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-step"><div class="num">4</div><div class="desc">WKV: weighted attention over state</div></div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-step"><div class="num">5</div><div class="desc">Receptance gate: sigmoid(r) * wkv</div></div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-step"><div class="num">6</div><div class="desc">Output projection</div></div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-step"><div class="num">7</div><div class="desc">Channel Mixing (same pattern)</div></div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-step"><div class="num">8</div><div class="desc">Next layer or output</div></div>
+            </div>
+        </div>
+
+        <h3 style="margin-top:20px;">vs Transformer</h3>
+        <div class="metric">
+            <div class="label">Transformer KV Cache</div>
+            <div class="value" id="transformerKV">4.2 MB</div>
+            <div class="subtext">Grows linearly with sequence length</div>
+        </div>
+        <div class="metric">
+            <div class="label">RWKV State Size</div>
+            <div class="value" id="rwkvState">524 KB</div>
+            <div class="subtext">Fixed size, constant per token</div>
+        </div>
+        <div class="metric">
+            <div class="label">Savings at 8K context</div>
+            <div class="value" id="savings" style="color:#4caf50;">87%</div>
+            <div class="subtext">Memory reduction vs Transformer</div>
+        </div>
+    </div>
+</div>
+
+<!-- Tooltip -->
+<div id="componentTooltip" class="tooltip" style="position:fixed;"></div>
+
+<script>
+// ========================================================================
+// THREE.JS MINI IMPLEMENTATION (No external dependencies)
+// ========================================================================
+
+// Minimal 3D engine for the visualization
+const canvas = document.getElementById('canvas3d');
+const ctx = canvas.getContext('2d');
+let W, H;
+let animating = true;
+let animSpeed = 1;
+let time = 0;
+let selectedComponent = 'token-shift';
+
+// Camera
+let camRotX = -0.3;
+let camRotY = 0.5;
+let camDist = 5;
+let isDragging = false;
+let lastMouse = { x: 0, y: 0 };
+
+// ========================================================================
+// RESIZE
+// ========================================================================
+function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ========================================================================
+// 3D MATH UTILITIES
+// ========================================================================
+function project(x, y, z) {
+    // Rotate around Y axis
+    let x1 = x * Math.cos(camRotY) - z * Math.sin(camRotY);
+    let z1 = x * Math.sin(camRotY) + z * Math.cos(camRotY);
+    // Rotate around X axis
+    let y1 = y * Math.cos(camRotX) - z1 * Math.sin(camRotX);
+    let z2 = y * Math.sin(camRotX) + z1 * Math.cos(camRotX);
+    // Perspective
+    let scale = camDist / (camDist + z2);
+    return {
+        x: W/2 + x1 * scale * 200,
+        y: H/2 + y1 * scale * 200,
+        z: z2,
+        scale: scale
+    };
+}
+
+// ========================================================================
+// COMPONENT DEFINITIONS
+// ========================================================================
+const components = {
+    'token-shift': {
+        name: 'Token Shift',
+        color: '#ff6b6b',
+        desc: 'Blends current token with previous token using learnable ratio. This gives RWKV "awareness" of position without explicit position encoding.',
+        formula: "x'_t = (1 - μ) ⊙ x_{t-1} + μ ⊙ x_t",
+        params: 'μ (mix ratio, learned per-channel)',
+        complexity: 'O(d)',
+    },
+    'time-mixing': {
+        name: 'Time Mixing (WKV)',
+        color: '#4ecdc4',
+        desc: 'The core innovation: computes attention over all previous tokens using exponential decay. Equivalent to attention but with O(1) per-token cost.',
+        formula: "wkv(t) = Σ e^{-(t-i)w + k_i} v_i / Σ e^{-(t-i)w + k_i}",
+        params: 'w (decay), u (bonus), k (key), v (value)',
+        complexity: 'O(d·h) per token',
+    },
+    'channel-mixing': {
+        name: 'Channel Mixing',
+        color: '#45b7d1',
+        desc: 'Mixes information across channels (dimensions) using receptance gating. Similar to FFN in transformers but with RNN-style gating.',
+        formula: "out = sigmoid(r) ⊙ (k² · v)",
+        params: 'r (receptance), k (key), v (value)',
+        complexity: 'O(d²)',
+    },
+    'lora-time': {
+        name: 'LoRA Time Decay',
+        color: '#f9ca24',
+        desc: 'v6 innovation: uses low-rank decomposition to compute per-token time decay, making the decay adapt to input content rather than being fixed.',
+        formula: "td_t = LoRA(x'_t) = B(A(x'_t))",
+        params: 'A (d→rank), B (rank→heads)',
+        complexity: 'O(d·rank)',
+    },
+    'receptance': {
+        name: 'Receptance Gate',
+        color: '#a55eea',
+        desc: 'Sigmoid gating mechanism that controls how much of the computed attention output to "receive". Key innovation for controlling information flow.',
+        formula: "out = sigmoid(r) ⊙ wkv_output",
+        params: 'r (receptance vector)',
+        complexity: 'O(d)',
+    },
+    'output': {
+        name: 'Output Projection',
+        color: '#26de81',
+        desc: 'Linear projection from attention/FFN output back to model dimension, with optional layer normalization.',
+        formula: "out = Wo · (sigmoid(r) ⊙ wkv)",
+        params: 'Wo (output weight matrix)',
+        complexity: 'O(d²)',
+    },
+};
+
+// ========================================================================
+// DRAWING FUNCTIONS
+// ========================================================================
+function drawBox(x, y, z, w, h, d, color, alpha = 0.8) {
+    const corners = [
+        [x-w/2, y-h/2, z-d/2], [x+w/2, y-h/2, z-d/2],
+        [x+w/2, y+h/2, z-d/2], [x-w/2, y+h/2, z-d/2],
+        [x-w/2, y-h/2, z+d/2], [x+w/2, y-h/2, z+d/2],
+        [x+w/2, y+h/2, z+d/2], [x-w/2, y+h/2, z+d/2],
+    ];
+    const projected = corners.map(c => project(c[0], c[1], c[2]));
+
+    const faces = [
+        [0,1,2,3], [4,5,6,7], [0,1,5,4],
+        [2,3,7,6], [0,3,7,4], [1,2,6,5],
+    ];
+
+    // Sort faces by depth
+    const faceDepths = faces.map((f, i) => ({
+        idx: i,
+        depth: f.reduce((s, vi) => s + projected[vi].z, 0) / 4
+    }));
+    faceDepths.sort((a, b) => a.depth - b.depth);
+
+    for (const { idx } of faceDepths) {
+        const f = faces[idx];
+        ctx.beginPath();
+        ctx.moveTo(projected[f[0]].x, projected[f[0]].y);
+        for (let i = 1; i < f.length; i++) {
+            ctx.lineTo(projected[f[i]].x, projected[f[i]].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = color + Math.floor(alpha * 200).toString(16).padStart(2, '0');
+        ctx.fill();
+        ctx.strokeStyle = color + '60';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+    }
+}
+
+function drawArrow(from, to, color = '#666') {
+    const p1 = project(from[0], from[1], from[2]);
+    const p2 = project(to[0], to[1], to[2]);
+
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Arrowhead
+    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    const size = 8;
+    ctx.beginPath();
+    ctx.moveTo(p2.x, p2.y);
+    ctx.lineTo(p2.x - size * Math.cos(angle - 0.4), p2.y - size * Math.sin(angle - 0.4));
+    ctx.lineTo(p2.x - size * Math.cos(angle + 0.4), p2.y - size * Math.sin(angle + 0.4));
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+}
+
+function drawLabel(x, y, z, text, color = '#fff', size = 12) {
+    const p = project(x, y, z);
+    if (p.scale < 0.3) return;
+    ctx.font = `${Math.max(8, size * p.scale)}px 'Segoe UI', sans-serif`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.fillText(text, p.x, p.y);
+}
+
+function drawParticle(x, y, z, radius, color) {
+    const p = project(x, y, z);
+    const r = radius * p.scale;
+    if (r < 0.5) return;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+}
+
+function drawLine(points, color, width = 2) {
+    ctx.beginPath();
+    const p0 = project(points[0][0], points[0][1], points[0][2]);
+    ctx.moveTo(p0.x, p0.y);
+    for (let i = 1; i < points.length; i++) {
+        const p = project(points[i][0], points[i][1], points[i][2]);
+        ctx.lineTo(p.x, p.y);
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+}
+
+// ========================================================================
+// SCENE RENDERING
+// ========================================================================
+function drawArchitecture() {
+    const nLayers = parseInt(document.getElementById('nLayers').value);
+    const layerH = 0.6;
+    const totalH = nLayers * layerH;
+    const startY = totalH / 2;
+
+    // Embedding
+    drawBox(0, startY + 0.5, 0, 2, 0.3, 0.8, '#7c4dff');
+    drawLabel(0, startY + 0.5, 0.6, 'Embedding', '#7c4dff');
+
+    // Input flow arrow
+    drawArrow([0, startY + 1, 0], [0, startY + 0.65, 0], '#666');
+
+    for (let i = 0; i < Math.min(nLayers, 16); i++) {
+        const y = startY - i * layerH;
+        const isSelected = (i === Math.floor(time / 2) % nLayers);
+        const alpha = isSelected ? 1 : 0.6;
+
+        // Layer block
+        drawBox(0, y, 0, 2.2, 0.5, 0.9, '#1a3a5c', alpha);
+
+        // Time Mixing
+        drawBox(-0.5, y, 0.1, 0.8, 0.35, 0.6, '#4ecdc4', alpha);
+        if (isSelected) drawLabel(-0.5, y, 0.55, 'Time Mix', '#4ecdc4', 10);
+
+        // Channel Mixing
+        drawBox(0.5, y, 0.1, 0.8, 0.35, 0.6, '#45b7d1', alpha);
+        if (isSelected) drawLabel(0.5, y, 0.55, 'Channel Mix', '#45b7d1', 10);
+
+        // Layer number
+        drawLabel(-1.3, y, 0, `L${i}`, '#666', 10);
+
+        // Flow arrow between layers
+        if (i < nLayers - 1) {
+            drawArrow([0, y - 0.25, 0], [0, y - layerH + 0.25, 0], '#333');
+        }
+
+        // Animated data flow particle
+        if (isSelected) {
+            const phase = (time % 1);
+            const px = -0.5 + phase * 1;
+            drawParticle(px, y, 0.4, 3, '#fff');
+        }
+    }
+
+    // Output head
+    const bottomY = startY - Math.min(nLayers, 16) * layerH;
+    drawArrow([0, bottomY + 0.25, 0], [0, bottomY - 0.15, 0], '#333');
+    drawBox(0, bottomY - 0.4, 0, 2, 0.3, 0.8, '#ff6b6b');
+    drawLabel(0, bottomY - 0.4, 0.6, 'LM Head', '#ff6b6b');
+
+    // Data flow particles
+    const numParticles = 20;
+    for (let i = 0; i < numParticles; i++) {
+        const t = (time * 0.5 + i / numParticles) % 1;
+        const py = startY + 0.5 - t * (startY + 0.5 - bottomY + 0.4);
+        const px = Math.sin(t * Math.PI * 4 + time) * 0.15;
+        drawParticle(px, py, 0.5, 2, `hsl(${180 + t * 180}, 80%, 60%)`);
+    }
+}
+
+function drawTimeMixing() {
+    // Detailed view of WKV mechanism
+    const cx = 0, cy = 0;
+
+    // Input tokens (past)
+    for (let i = 0; i < 8; i++) {
+        const x = -2.5 + i * 0.7;
+        const y = 1.5;
+        const alpha = 0.4 + 0.6 * Math.exp(-i * 0.3);
+        drawBox(x, y, 0, 0.5, 0.3, 0.3, '#4ecdc4', alpha);
+        drawLabel(x, y + 0.3, 0, `t-${8-i}`, '#888', 9);
+
+        // Decay visualization
+        const decayHeight = 0.3 * Math.exp(-i * 0.3);
+        ctx.fillStyle = '#4ecdc440';
+        const p1 = project(x - 0.2, y - 0.15, 0);
+        const p2 = project(x + 0.2, y - 0.15 - decayHeight, 0);
+        ctx.fillRect(p1.x, p1.y, (p2.x - p1.x), (p1.y - p2.y) * p.scale);
+    }
+
+    // Current token (highlighted)
+    drawBox(2.5, 1.5, 0, 0.6, 0.4, 0.4, '#fff', 1);
+    drawLabel(2.5, 1.9, 0, 'Current', '#fff', 11);
+
+    // State accumulation
+    drawBox(0, 0, 0, 4, 0.8, 1, '#1a3a5c', 0.6);
+    drawLabel(0, 0.6, 0.6, 'RNN State (accumulated)', '#4ecdc4', 12);
+
+    // Decay arrows from tokens to state
+    for (let i = 0; i < 8; i++) {
+        const x = -2.5 + i * 0.7;
+        drawArrow([x, 1.2, 0], [x * 0.3, 0.4, 0], '#4ecdc440');
+    }
+
+    // Current token -> state (with bonus)
+    drawArrow([2.5, 1.2, 0], [0.5, 0.4, 0], '#fff');
+
+    // Output
+    drawArrow([0, -0.4, 0], [0, -1, 0], '#4ecdc4');
+    drawBox(0, -1.3, 0, 2, 0.4, 0.5, '#4ecdc4');
+    drawLabel(0, -1.3, 0.4, 'WKV Output', '#4ecdc4', 12);
+
+    // Receptance gate
+    drawBox(2, -1.3, 0, 0.8, 0.4, 0.5, '#a55eea');
+    drawLabel(2, -1.3, 0.4, 'σ(r)', '#a55eea', 11);
+    drawArrow([1, -1.3, 0], [1.5, -1.3, 0], '#a55eea');
+
+    // Time decay visualization
+    drawLabel(-2.5, 0.5, 0, 'e^{-w·(t-i)}', '#f9ca24', 10);
+
+    // Animated decay curve
+    ctx.beginPath();
+    ctx.strokeStyle = '#f9ca2480';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 100; i++) {
+        const t = i / 100;
+        const x = -2.5 + t * 5.5;
+        const y = 0.8 - 0.6 * Math.exp(-t * 4);
+        const p = project(x, y, 0);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+}
+
+function drawChannelMixing() {
+    // Channel mixing: FFN-like with squared activation
+    const nChannels = 12;
+
+    // Input channels
+    for (let i = 0; i < nChannels; i++) {
+        const x = -3 + i * 0.55;
+        const y = 1.5;
+        const val = 0.3 + 0.7 * Math.abs(Math.sin(i * 0.8 + time));
+        drawBox(x, y, 0, 0.4, 0.3, 0.3, '#45b7d1', val);
+    }
+    drawLabel(0, 2, 0, 'Input Channels', '#45b7d1', 12);
+
+    // Token shift (blend with previous)
+    drawBox(-1.5, 0.5, 0, 1.5, 0.4, 0.5, '#ff6b6b', 0.7);
+    drawLabel(-1.5, 0.5, 0.4, 'Token Shift', '#ff6b6b', 11);
+
+    // Key projection (squared)
+    drawBox(0, 0.5, 0, 1.2, 0.4, 0.5, '#f9ca24', 0.7);
+    drawLabel(0, 0.5, 0.4, 'k²', '#f9ca24', 11);
+
+    // Value projection
+    drawBox(1.5, 0.5, 0, 1.2, 0.4, 0.5, '#26de81', 0.7);
+    drawLabel(1.5, 0.5, 0.4, 'Wv', '#26de81', 11);
+
+    // Receptance gate
+    drawBox(0, -0.5, 0, 2, 0.5, 0.5, '#a55eea', 0.8);
+    drawLabel(0, -0.5, 0.4, 'sigmoid(r) ⊙ (k² · v)', '#a55eea', 11);
+
+    // Output
+    drawBox(0, -1.5, 0, 2, 0.4, 0.5, '#7c4dff');
+    drawLabel(0, -1.5, 0.4, 'Output', '#7c4dff', 12);
+
+    // Arrows
+    drawArrow([0, 1.3, 0], [-1.5, 0.75, 0], '#ff6b6b60');
+    drawArrow([0, 1.3, 0], [0, 0.75, 0], '#f9ca2460');
+    drawArrow([0, 1.3, 0], [1.5, 0.75, 0], '#26de8160');
+    drawArrow([-1.5, 0.25, 0], [0, -0.25, 0], '#666');
+    drawArrow([0, 0.25, 0], [0, -0.25, 0], '#666');
+    drawArrow([1.5, 0.25, 0], [0, -0.25, 0], '#666');
+    drawArrow([0, -0.75, 0], [0, -1.25, 0], '#666');
+
+    // Animated data flow
+    for (let i = 0; i < 5; i++) {
+        const t = (time * 0.8 + i / 5) % 1;
+        if (t < 0.3) {
+            drawParticle(-1.5 + t * 5, 0.5, 0.3, 3, '#fff8');
+        } else if (t < 0.6) {
+            drawParticle(0, 0.5 - (t - 0.3) * 3.3, 0.3, 3, '#fff8');
+        } else {
+            drawParticle(0, -1.5 + (t - 0.6) * 2.5, 0.3, 3, '#fff8');
+        }
+    }
+}
+
+function drawDataFlow() {
+    // Animated data flow through the entire model
+    const nSteps = 6;
+    const labels = ['Input', 'Embed', 'Token Shift', 'WKV', 'Channel Mix', 'Output'];
+    const colors = ['#666', '#7c4dff', '#ff6b6b', '#4ecdc4', '#45b7d1', '#26de81'];
+
+    for (let i = 0; i < nSteps; i++) {
+        const x = -3 + i * 1.4;
+        const y = 0;
+        drawBox(x, y, 0, 1, 0.6, 0.6, colors[i], 0.8);
+        drawLabel(x, y - 0.6, 0, labels[i], colors[i], 11);
+
+        if (i < nSteps - 1) {
+            drawArrow([x + 0.55, y, 0], [x + 0.85, y, 0], '#666');
+        }
+    }
+
+    // Animated data packet
+    const packetT = (time * 0.5) % 1;
+    const packetX = -3 + packetT * (nSteps - 1) * 1.4;
+    drawParticle(packetX, 0, 0.5, 5, '#fff');
+
+    // Sub-flow details for WKV step
+    const wkvX = -3 + 3 * 1.4;
+    const subSteps = ['q,k,v', 'decay', 'state', 'gate'];
+    for (let i = 0; i < subSteps.length; i++) {
+        const sy = -1.2 - i * 0.5;
+        drawBox(wkvX, sy, 0, 0.8, 0.3, 0.3, '#4ecdc4', 0.5);
+        drawLabel(wkvX, sy, 0.3, subSteps[i], '#4ecdc4', 9);
+    }
+}
+
+function drawComparison() {
+    // Side by side: Transformer vs RWKV
+
+    // Transformer side
+    drawLabel(-1.5, 2, 0, 'Transformer', '#ff6b6b', 14);
+
+    // Self-attention with growing KV cache
+    for (let i = 0; i < 8; i++) {
+        const size = 0.2 + i * 0.08;
+        drawBox(-1.5, 1.2 - i * 0.4, 0, size, 0.25, 0.3, '#ff6b6b', 0.5);
+        drawLabel(-1.5 - size/2 - 0.2, 1.2 - i * 0.4, 0, `${(i+1)*512}`, '#888', 8);
+    }
+    drawLabel(-1.5, -2, 0, 'KV Cache grows', '#ff6b6b', 10);
+    drawLabel(-1.5, -2.3, 0, 'O(n) per token', '#888', 9);
+
+    // RWKV side
+    drawLabel(1.5, 2, 0, 'RWKV-v6', '#4ecdc4', 14);
+
+    // Fixed state
+    drawBox(1.5, 0.5, 0, 1.5, 0.8, 0.6, '#4ecdc4', 0.7);
+    drawLabel(1.5, 0.5, 0.5, 'Fixed State', '#4ecdc4', 12);
+    drawLabel(1.5, -0.2, 0, '(d × d_heads)', '#888', 9);
+
+    // Constant size
+    for (let i = 0; i < 8; i++) {
+        drawBox(1.5, -0.8 - i * 0.2, 0, 1.5, 0.15, 0.3, '#4ecdc4', 0.3);
+    }
+    drawLabel(1.5, -2.3, 0, 'O(1) per token', '#4ecdc4', 10);
+
+    // VS
+    drawLabel(0, 0, 0, 'VS', '#fff', 16);
+
+    // Animated comparison
+    const seqLen = Math.floor(time * 2) % 32;
+    drawLabel(-1.5, -2.6, 0, `Seq len: ${seqLen * 256}`, '#ff6b6b', 10);
+    drawLabel(1.5, -2.6, 0, `Always fixed`, '#4ecdc4', 10);
+}
+
+// ========================================================================
+// MAIN RENDER LOOP
+// ========================================================================
+function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Background gradient
+    const grad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, W/2);
+    grad.addColorStop(0, '#0a0a2a');
+    grad.addColorStop(1, '#050510');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid
+    ctx.strokeStyle = '#ffffff08';
+    ctx.lineWidth = 1;
+    for (let i = -5; i <= 5; i++) {
+        drawLine([[i, -3, -3], [i, -3, 3]], '#ffffff08');
+        drawLine([[-3, -3, i], [3, -3, i]], '#ffffff08');
+    }
+
+    // Draw selected view
+    const viewMode = document.getElementById('viewMode').value;
+    switch (viewMode) {
+        case 'architecture': drawArchitecture(); break;
+        case 'time-mixing': drawTimeMixing(); break;
+        case 'channel-mixing': drawChannelMixing(); break;
+        case 'data-flow': drawDataFlow(); break;
+        case 'comparison': drawComparison(); break;
+    }
+
+    // Auto-rotate
+    if (animating) {
+        camRotY += 0.003 * animSpeed;
+    }
+
+    time += 0.016 * animSpeed;
+    requestAnimationFrame(render);
+}
+
+// ========================================================================
+// INTERACTION
+// ========================================================================
+canvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    lastMouse = { x: e.clientX, y: e.clientY };
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+        camRotY += (e.clientX - lastMouse.x) * 0.01;
+        camRotX += (e.clientY - lastMouse.y) * 0.01;
+        camRotX = Math.max(-Math.PI/2, Math.min(Math.PI/2, camRotX));
+        lastMouse = { x: e.clientX, y: e.clientY };
+    }
+});
+
+canvas.addEventListener('mouseup', () => { isDragging = false; });
+canvas.addEventListener('mouseleave', () => { isDragging = false; });
+
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    camDist += e.deltaY * 0.01;
+    camDist = Math.max(2, Math.min(15, camDist));
+}, { passive: false });
+
+// ========================================================================
+// UI CONTROLS
+// ========================================================================
+function updateConfig() {
+    document.getElementById('dimVal').textContent = document.getElementById('dModel').value;
+    document.getElementById('layerVal').textContent = document.getElementById('nLayers').value;
+    document.getElementById('headVal').textContent = document.getElementById('nHeads').value;
+    document.getElementById('ffnVal').textContent = document.getElementById('ffnMult').value + 'x';
+    document.getElementById('vocabVal').textContent = parseInt(document.getElementById('vocabSize').value).toLocaleString();
+
+    // Recompute stats
+    const d = parseInt(document.getElementById('dModel').value);
+    const L = parseInt(document.getElementById('nLayers').value);
+    const h = parseInt(document.getElementById('nHeads').value);
+    const ffn = parseInt(document.getElementById('ffnMult').value);
+    const V = parseInt(document.getElementById('vocabSize').value);
+
+    // RWKV-v6 parameter count
+    // Per layer: 4*d*d (projections) + 3*d (biases) + d*rank*2 (LoRA) + 4*d*d*ffn (FFN)
+    const rank = 64;
+    const perLayer = 4 * d * d + 3 * d + d * rank * 2 + 2 * d * d * ffn;
+    const embed = V * d;
+    const total = embed + L * perLayer + d; // +d for final norm
+
+    document.getElementById('totalParams').textContent = formatParams(total);
+    document.getElementById('memory').textContent = formatBytes(total * 2);
+
+    const flops = 2 * total;
+    document.getElementById('flops').textContent = formatParams(flops);
+
+    // RWKV: no KV cache!
+    document.getElementById('kvCache').textContent = '0 (RNN state)';
+
+    // Transformer KV cache comparison
+    const kvPerLayer = 2 * d; // K + V per layer
+    const kvTotal = kvPerLayer * L;
+    document.getElementById('transformerKV').textContent = formatBytes(kvTotal * 2 * 2048); // at 2K context
+    document.getElementById('rwkvState').textContent = formatBytes(kvTotal * 2);
+
+    const savings = ((kvTotal * 2 * 2048 - kvTotal * 2) / (kvTotal * 2 * 2048) * 100).toFixed(0);
+    document.getElementById('savings').textContent = savings + '%';
+}
+
+function formatParams(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(0) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+    return n.toString();
+}
+
+function formatBytes(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
+    if (n >= 1e6) return (n / 1e6).toFixed(0) + ' MB';
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + ' KB';
+    return n + ' B';
+}
+
+function changeView() {
+    const view = document.getElementById('viewMode').value;
+    document.getElementById('canvasInfo').textContent =
+        view === 'architecture' ? 'Drag to rotate · Scroll to zoom · Click components for details' :
+        view === 'time-mixing' ? 'WKV mechanism: exponential decay over time' :
+        view === 'channel-mixing' ? 'Channel mixing: FFN with squared activation' :
+        view === 'data-flow' ? 'Animated data flow through the model' :
+        'RWKV vs Transformer: memory comparison';
+}
+
+function updateSpeed() {
+    animSpeed = parseFloat(document.getElementById('animSpeed').value);
+    document.getElementById('speedVal').textContent = animSpeed.toFixed(1) + 'x';
+}
+
+function toggleAnimation() {
+    animating = !animating;
+    document.getElementById('animBtn').textContent = animating ? 'Pause' : 'Play';
+}
+
+function resetView() {
+    camRotX = -0.3;
+    camRotY = 0.5;
+    camDist = 5;
+}
+
+function selectComponent(name) {
+    selectedComponent = name;
+    document.querySelectorAll('.component-list li').forEach(li => li.classList.remove('active'));
+    event.target.closest('li').classList.add('active');
+
+    const comp = components[name];
+    if (comp) {
+        document.getElementById('formulaBlock').innerHTML =
+            `<span class="cmt"># ${comp.name}</span>\n` +
+            `<span class="cmt"># ${comp.desc.substring(0, 80)}...</span>\n\n` +
+            `<span class="cmt"># Formula:</span>\n${comp.formula}\n\n` +
+            `<span class="cmt"># Parameters:</span>\n<span class="str">${comp.params}</span>\n\n` +
+            `<span class="cmt"># Complexity:</span>\n<span class="num">${comp.complexity}</span>`;
+    }
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('tab-formula').style.display = tab === 'formula' ? 'block' : 'none';
+    document.getElementById('tab-code').style.display = tab === 'code' ? 'block' : 'none';
+    document.getElementById('tab-flow').style.display = tab === 'flow' ? 'block' : 'none';
+}
+
+// Initialize
+updateConfig();
+render();
+</script>
+</body>
+</html>

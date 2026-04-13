@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RLHF, DPO, GRPO, IPO, KTO, ORPO — Alignment Methods Comparison</title>
+    <style>
+        :root { --bg:#0a0a0f; --s1:#12121a; --s2:#1a1a2e; --accent:#6c63ff; --accent2:#00d2ff; --ok:#00e676; --warn:#ffab00; --err:#ff5252; --txt:#e0e0e0; --dim:#888; --bdr:#2a2a3e; }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);line-height:1.6}
+        .c{max-width:1200px;margin:0 auto;padding:2rem}
+        h1{font-size:2.2rem;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        h2{font-size:1.4rem;color:var(--accent2);margin:2rem 0 1rem;border-bottom:1px solid var(--bdr);padding-bottom:.5rem}
+        .sub{color:var(--dim);margin-bottom:2rem}
+        .card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:1.5rem;margin:1rem 0}
+        .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+        .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+        @media(max-width:768px){.g2,.g3{grid-template-columns:1fr}}
+        .tabs{display:flex;border-bottom:1px solid var(--bdr);margin:1rem 0 0}
+        .tab{padding:.7rem 1.2rem;cursor:pointer;color:var(--dim);border-bottom:2px solid transparent;font-size:.9rem}
+        .tab:hover{color:var(--txt)}.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+        .tc{display:none;padding:1rem 0}.tc.active{display:block}
+        table{width:100%;border-collapse:collapse;margin:1rem 0}
+        th,td{padding:.6rem .8rem;text-align:left;border-bottom:1px solid var(--bdr);font-size:.9rem}
+        th{color:var(--accent2);font-weight:600}
+        .tag{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-size:.75rem;font-weight:600}
+        .tag.yes{background:rgba(0,230,118,.15);color:var(--ok)}.tag.no{background:rgba(255,82,82,.15);color:var(--err)}
+        canvas{display:block;width:100%;border-radius:8px}
+        .viz{background:var(--s2);border-radius:12px;padding:1rem;margin:1rem 0}
+        .slider-group{display:flex;align-items:center;gap:1rem;margin:.5rem 0}
+        .slider-group label{min-width:100px;font-size:.9rem;color:var(--dim)}
+        input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--bdr);border-radius:2px}
+        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--accent);border-radius:50%;cursor:pointer}
+        .vd{min-width:50px;text-align:right;font-family:monospace;color:var(--accent)}
+        button{background:var(--accent);color:#fff;border:none;padding:.5rem 1rem;border-radius:8px;cursor:pointer;font-size:.85rem}
+        button:hover{background:#5a52e0}
+        .ctrls{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+        .metric{text-align:center;padding:.8rem}
+        .mv{font-size:1.8rem;font-weight:700;font-family:monospace}
+        .ml{font-size:.75rem;color:var(--dim);text-transform:uppercase}
+        .bar-h{display:flex;align-items:center;gap:.5rem;margin:.3rem 0}
+        .bar-h .lbl{min-width:60px;font-size:.8rem;color:var(--dim)}
+        .bar-h .bar{flex:1;height:18px;background:var(--s2);border-radius:4px;overflow:hidden}
+        .bar-h .fill{height:100%;border-radius:4px;transition:width .5s}
+        .bar-h .val{min-width:40px;text-align:right;font-family:monospace;font-size:.8rem}
+    </style>
+</head>
+<body>
+<div class="c">
+    <h1>🎯 LLM Alignment Methods</h1>
+    <p class="sub">Interactive comparison of RLHF, DPO, GRPO, IPO, KTO, ORPO, and Process Reward Models</p>
+
+    <!-- COMPARISON TABLE -->
+    <h2>📊 Method Comparison</h2>
+    <div class="card" style="overflow-x:auto">
+        <table>
+            <thead>
+                <tr><th>Method</th><th>Input</th><th>Ref Model</th><th>Reward</th><th>Memory</th><th>Best For</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>RLHF (PPO)</strong></td><td>Preferences</td><td><span class="tag yes">Yes</span></td><td>Learned RM</td><td>3-4x</td><td>General alignment</td></tr>
+                <tr><td><strong>DPO</strong></td><td>Pairs</td><td><span class="tag yes">Yes</span></td><td>Implicit</td><td>2x</td><td>Simple alignment</td></tr>
+                <tr><td><strong>GRPO</strong></td><td>Prompts</td><td><span class="tag yes">Yes</span></td><td>Automatic</td><td>1.5x</td><td>Reasoning (math)</td></tr>
+                <tr><td><strong>IPO</strong></td><td>Pairs</td><td><span class="tag yes">Yes</span></td><td>Implicit</td><td>2x</td><td>Robust alignment</td></tr>
+                <tr><td><strong>KTO</strong></td><td>Individual</td><td><span class="tag yes">Yes</span></td><td>Implicit</td><td>2x</td><td>Limited data</td></tr>
+                <tr><td><strong>ORPO</strong></td><td>Pairs</td><td><span class="tag no">No</span></td><td>Implicit</td><td>1x</td><td>Memory-constrained</td></tr>
+                <tr><td><strong>PRM</strong></td><td>Steps</td><td><span class="tag no">No</span></td><td>Step-level</td><td>1x</td><td>Reasoning verification</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- INTERACTIVE TABS -->
+    <h2>🔬 Deep Dive</h2>
+    <div class="tabs">
+        <div class="tab active" onclick="sw('rlhf')">RLHF</div>
+        <div class="tab" onclick="sw('dpo')">DPO</div>
+        <div class="tab" onclick="sw('grpo')">GRPO</div>
+        <div class="tab" onclick="sw('prm')">PRM</div>
+    </div>
+
+    <div id="t-rlhf" class="tc active">
+        <div class="card">
+            <h3>RLHF — Reinforcement Learning from Human Feedback</h3>
+            <p><strong>How it works:</strong> Train a reward model on human preferences, then use PPO to optimize the policy against the reward model.</p>
+            <p style="margin-top:.5rem"><strong>Pipeline:</strong> SFT → Reward Model Training → PPO Optimization</p>
+            <p style="margin-top:.5rem"><strong>Pros:</strong> Most flexible, works with any objective</p>
+            <p><strong>Cons:</strong> Complex, 3-4x memory, reward hacking risk</p>
+            <p style="margin-top:.5rem"><strong>Used by:</strong> ChatGPT, Claude, InstructGPT</p>
+        </div>
+    </div>
+    <div id="t-dpo" class="tc">
+        <div class="card">
+            <h3>DPO — Direct Preference Optimization</h3>
+            <p><strong>How it works:</strong> Skip the reward model entirely. Optimize policy directly on preference pairs using a logistic loss.</p>
+            <p style="margin-top:.5rem"><strong>Loss:</strong> L = -log σ(β · (log π(y_w)/π_ref(y_w) - log π(y_l)/π_ref(y_l)))</p>
+            <p style="margin-top:.5rem"><strong>Pros:</strong> Simple, no reward model, stable training</p>
+            <p><strong>Cons:</strong> Needs preference pairs, can overfit</p>
+            <p style="margin-top:.5rem"><strong>Used by:</strong> Zephyr, many open-source models</p>
+        </div>
+    </div>
+    <div id="t-grpo" class="tc">
+        <div class="card">
+            <h3>GRPO — Group Relative Policy Optimization</h3>
+            <p><strong>How it works:</strong> Generate N responses per prompt, score them automatically, optimize to prefer higher-scoring responses.</p>
+            <p style="margin-top:.5rem"><strong>Key insight:</strong> Group mean is the natural baseline — no value function needed!</p>
+            <p style="margin-top:.5rem"><strong>Pros:</strong> No preference data needed, works with automatic rewards</p>
+            <p><strong>Cons:</strong> Needs good reward function, more compute per step</p>
+            <p style="margin-top:.5rem"><strong>Used by:</strong> DeepSeek-R1, DeepSeek-Math</p>
+        </div>
+    </div>
+    <div id="t-prm" class="tc">
+        <div class="card">
+            <h3>PRM — Process Reward Model</h3>
+            <p><strong>How it works:</strong> Score each STEP of reasoning, not just the final answer. Enables step-level selection and error detection.</p>
+            <p style="margin-top:.5rem"><strong>Use cases:</strong> Best-of-N selection, training signal, error localization</p>
+            <p style="margin-top:.5rem"><strong>Pros:</strong> Dense feedback, catches errors early</p>
+            <p><strong>Cons:</strong> Needs step-level labels (expensive)</p>
+            <p style="margin-top:.5rem"><strong>Used by:</strong> OpenAI o1, DeepSeek-R1, Math-Shepherd</p>
+        </div>
+    </div>
+
+    <!-- SIMULATION -->
+    <h2>🎮 Alignment Simulation</h2>
+    <div class="g2">
+        <div class="card">
+            <h3>Parameters</h3>
+            <div class="slider-group"><label>Method</label>
+                <select id="method" style="background:var(--s2);color:var(--txt);border:1px solid var(--bdr);padding:.4rem;border-radius:6px;flex:1">
+                    <option value="dpo">DPO</option><option value="grpo">GRPO</option>
+                    <option value="ipo">IPO</option><option value="kto">KTO</option>
+                </select>
+            </div>
+            <div class="slider-group"><label>β (beta)</label><input type="range" id="beta" min="0.01" max="0.5" value="0.1" step="0.01"><span class="vd" id="betaV">0.10</span></div>
+            <div class="slider-group"><label>Batch Size</label><input type="range" id="bs" min="4" max="64" value="16" step="4"><span class="vd" id="bsV">16</span></div>
+            <div class="ctrls"><button onclick="runSim()">▶ Run Step</button><button onclick="runMulti()">▶▶ Run 10</button></div>
+        </div>
+        <div class="card">
+            <h3>Metrics</h3>
+            <div class="g3">
+                <div class="metric"><div class="mv" id="mLoss" style="color:var(--accent)">0.00</div><div class="ml">Loss</div></div>
+                <div class="metric"><div class="mv" id="mAcc" style="color:var(--ok)">0%</div><div class="ml">Accuracy</div></div>
+                <div class="metric"><div class="mv" id="mMargin" style="color:var(--warn)">0.00</div><div class="ml">Margin</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TRAINING CURVES -->
+    <h2>📈 Training Curves</h2>
+    <div class="g2">
+        <div class="card"><h3>Loss</h3><div class="viz"><canvas id="lossChart" height="200"></canvas></div></div>
+        <div class="card"><h3>Accuracy</h3><div class="viz"><canvas id="accChart" height="200"></canvas></div></div>
+    </div>
+
+    <!-- REWARD BARS -->
+    <h2>🏆 Implicit Rewards</h2>
+    <div class="card" id="rewardBars"></div>
+
+    <div style="text-align:center;margin:3rem 0;color:var(--dim);font-size:.85rem">
+        <p>SOTA AI — State-of-the-Art AI from Scratch</p>
+    </div>
+</div>
+
+<script>
+let hist={loss:[],acc:[]};
+function sw(t){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tc').forEach(x=>x.classList.remove('active'));event.target.classList.add('active');document.getElementById('t-'+t).classList.add('active')}
+function runSim(){
+    const m=document.getElementById('method').value,beta=+document.getElementById('beta').value,bs=+document.getElementById('bs').value;
+    let loss,acc,margin;
+    const ch=np(bs),re=np(bs);
+    if(m==='dpo'){const d=ch-re;loss=mean(-logsig(beta*d));acc=mean(d>0);margin=mean(d)}
+    else if(m==='grpo'){const r=np(bs*4).reshape(bs,4);const a=norm(r);loss=mean(-a*ch.reshape(bs,1).broadcast(bs,4));acc=mean(r.max(1)>0);margin=mean(a)}
+    else if(m==='ipo'){const d=ch-re;loss=mean((d-0.1)**2);acc=mean(d>0);margin=mean(d)}
+    else{const lr=ch-re;loss=mean(-logsig(beta*lr));acc=mean(lr>0);margin=mean(lr)}
+    hist.loss.push(loss);hist.acc.push(acc);
+    document.getElementById('mLoss').textContent=loss.toFixed(3);
+    document.getElementById('mAcc').textContent=(acc*100).toFixed(0)+'%';
+    document.getElementById('mMargin').textContent=margin.toFixed(3);
+    drawC('lossChart',hist.loss,'var(--accent)','Loss');
+    drawC('accChart',hist.acc,'var(--ok)','Accuracy');
+    drawBars(ch,re);
+}
+function runMulti(){let c=0;const iv=setInterval(()=>{runSim();c++;if(c>=10)clearInterval(iv)},150)}
+function np(n){return Array.from({length:n},()=>(Math.random()-0.5)*2)}
+function mean(a){return a.reduce((s,v)=>s+v,0)/a.length}
+function logsig(x){return Math.log(1/(1+Math.exp(-Math.max(-20,Math.min(20,x)))))}
+function norm(a){const m=mean(a),s=Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/a.length)||1;return a.map(v=>(v-m)/s)}
+Array.prototype.reshape=function(r,c){const o=[];for(let i=0;i<r;i++)o.push(this.slice(i*c,(i+1)*c));return o}
+Array.prototype.max=function(d){return d===1?this.map(r=>Math.max(...r)):Math.max(...this.flat())}
+Array.prototype.broadcast=function(r,c){return Array.from({length:r},()=>this[0]||0)}
+function drawC(id,data,color,label){const cv=document.getElementById(id),ctx=cv.getContext('2d'),w=cv.width=cv.offsetWidth*2,h=400;ctx.clearRect(0,0,w,h);if(data.length<2){ctx.fillStyle='#888';ctx.font='20px sans-serif';ctx.textAlign='center';ctx.fillText('Run a simulation',w/2,h/2);return}const p=40,pw=w-p*2,ph=h-p*2,mn=Math.min(...data),mx=Math.max(...data),rg=mx-mn||1;ctx.strokeStyle='#2a2a3e';ctx.lineWidth=1;for(let i=0;i<=4;i++){const y=p+ph/4*i;ctx.beginPath();ctx.moveTo(p,y);ctx.lineTo(w-p,y);ctx.stroke();ctx.fillStyle='#888';ctx.font='16px mono';ctx.textAlign='right';ctx.fillText((mx-rg/4*i).toFixed(2),p-5,y+5)}ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();for(let i=0;i<data.length;i++){const x=p+i/(data.length-1)*pw,y=p+(mx-data[i])/rg*ph;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke();ctx.fillStyle=color;for(let i=0;i<data.length;i++){const x=p+i/(data.length-1)*pw,y=p+(mx-data[i])/rg*ph;ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fill()}ctx.fillStyle=color;ctx.font='18px sans-serif';ctx.textAlign='left';ctx.fillText(label,p,p-10)}
+function drawBars(ch,re){const c=document.getElementById('rewardBars');const mx=Math.max(...ch.map(Math.abs),...re.map(Math.abs),0.1);c.innerHTML='<h3 style="margin-bottom:.5rem">Chosen vs Rejected Rewards</h3>'+ch.slice(0,8).map((v,i)=>`<div class="bar-h"><span class="lbl">Pair ${i+1}</span><div class="bar"><div class="fill" style="width:${Math.abs(v)/mx*50}%;background:linear-gradient(90deg,var(--ok),var(--accent2));${v>=0?'left:50%':'right:50%'};position:absolute"></div></div><span class="val" style="color:${v>=0?'var(--ok)':'var(--err)'}">${v>0?'+':''}${v.toFixed(2)}</span></div>`).join('')}
+['beta','bs'].forEach(id=>{const s=document.getElementById(id),d=document.getElementById(id+'V');s.addEventListener('input',()=>d.textContent=id==='beta'?parseFloat(s.value).toFixed(2):s.value)});
+</script>
+</body>
+</html>

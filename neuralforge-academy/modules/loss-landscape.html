@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 1.6: Loss Landscapes — NeuralForge Academy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        :root { --bg-void: #030712; --bg-surface: #0a0f1e; --bg-panel: #0f172a; --accent-cyan: #06b6d4; --accent-violet: #7c3aed; --accent-emerald: #10b981; --accent-amber: #f59e0b; --accent-rose: #f43f5e; --text-primary: #f1f5f9; --text-secondary: #94a3b8; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-void); color: var(--text-primary); line-height: 1.7; }
+        .topbar { position: fixed; top: 0; left: 0; width: 100%; height: 60px; background: rgba(3,7,18,0.95); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 100; display: flex; align-items: center; padding: 0 20px; }
+        .topbar a { color: var(--accent-cyan); text-decoration: none; font-size: 0.9rem; }
+        .topbar .breadcrumb { color: var(--text-secondary); margin-left: 16px; }
+        .topbar .breadcrumb span { color: var(--accent-cyan); }
+        .module-header { padding: 100px 40px 40px; max-width: 1200px; margin: 0 auto; }
+        .module-badge { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; padding: 4px 12px; border-radius: 20px; background: rgba(244,63,94,0.2); color: var(--accent-rose); border: 1px solid var(--accent-rose); margin-bottom: 16px; }
+        .module-title { font-family: 'Space Grotesk', sans-serif; font-size: 3rem; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; }
+        .module-subtitle { font-size: 1.2rem; color: var(--text-secondary); max-width: 800px; }
+        .module-meta { display: flex; gap: 24px; margin-top: 24px; flex-wrap: wrap; }
+        .meta-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-secondary); }
+        .content { max-width: 1200px; margin: 0 auto; padding: 40px; }
+        .section { margin-bottom: 60px; }
+        .section-title { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--accent-rose); margin-bottom: 20px; }
+        .section h3 { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 600; color: var(--text-primary); margin: 24px 0 12px; }
+        .section p { color: var(--text-secondary); margin-bottom: 16px; font-size: 1.05rem; }
+        .canvas-container { width: 100%; height: 500px; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0; position: relative; }
+        .canvas-container canvas { width: 100%; height: 100%; }
+        .canvas-label { position: absolute; bottom: 16px; left: 16px; background: rgba(3,7,18,0.8); padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); }
+        .analogy { background: rgba(6,182,212,0.1); border-left: 3px solid var(--accent-cyan); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+        .warning { background: rgba(245,158,11,0.1); border-left: 3px solid var(--accent-amber); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+        .math-block { background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; margin: 20px 0; text-align: center; font-family: 'JetBrains Mono', monospace; }
+        .code-block { background: var(--bg-void); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; overflow-x: auto; margin: 20px 0; }
+        .code-block .comment { color: #6b7280; }
+        .code-block .keyword { color: var(--accent-violet); }
+        .code-block .string { color: var(--accent-emerald); }
+        .code-block .number { color: var(--accent-amber); }
+        .sim-controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+        .sim-btn { padding: 10px 20px; border: 1px solid var(--accent-rose); background: transparent; color: var(--accent-rose); border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
+        .sim-btn:hover, .sim-btn.active { background: var(--accent-rose); color: var(--bg-void); }
+        .slider-group { margin: 16px 0; }
+        .slider-group label { display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9rem; }
+        .slider-group input[type="range"] { width: 100%; accent-color: var(--accent-rose); }
+        .optimizer-card { display: inline-block; padding: 12px 20px; margin: 4px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .optimizer-card:hover { transform: scale(1.05); }
+        .optimizer-card.sgd { background: rgba(6,182,212,0.2); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); }
+        .optimizer-card.momentum { background: rgba(16,185,129,0.2); border: 1px solid var(--accent-emerald); color: var(--accent-emerald); }
+        .optimizer-card.adam { background: rgba(124,58,237,0.2); border: 1px solid var(--accent-violet); color: var(--accent-violet); }
+        .optimizer-card.adamw { background: rgba(245,158,11,0.2); border: 1px solid var(--accent-amber); color: var(--accent-amber); }
+        .level-toggle { display: flex; gap: 8px; margin: 20px 0; flex-wrap: wrap; }
+        .level-btn { padding: 8px 16px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: var(--text-secondary); border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: all 0.3s; }
+        .level-btn:hover, .level-btn.active { border-color: var(--accent-rose); color: var(--accent-rose); background: rgba(244,63,94,0.1); }
+        .level-content { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <a href="../index.html">← NeuralForge Academy</a>
+        <div class="breadcrumb"><span>Track 1: LLMs</span> → Module 1.6: Loss Landscapes</div>
+    </div>
+
+    <div class="module-header">
+        <div class="module-badge">TRACK 1 · MODULE 1.6</div>
+        <h1 class="module-title">Training Dynamics & Loss Landscapes</h1>
+        <p class="module-subtitle">
+            Visualize the terrain that optimization algorithms navigate. See why some optimizers
+            succeed where others fail.
+        </p>
+        <div class="module-meta">
+            <div class="meta-item">⏱️ 2 hours</div>
+            <div class="meta-item">🎯 3 Simulations</div>
+            <div class="meta-item">📊 Expert Level</div>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <!-- 3D Loss Landscape -->
+        <div class="section">
+            <h2 class="section-title">🏔️ The Loss Landscape</h2>
+            <p>
+                Training a neural network is like navigating a mountain range in fog.
+                The height represents the loss (error), and we want to find the lowest valley.
+                The model's weights determine where we are on this terrain.
+            </p>
+
+            <div class="canvas-container" id="landscape-canvas">
+                <div class="canvas-label">🖱️ Drag to rotate · Watch the optimizer navigate the terrain</div>
+            </div>
+
+            <div class="sim-controls">
+                <button class="sim-btn active" onclick="startOptimization()">▶ Start Optimization</button>
+                <button class="sim-btn" onclick="resetOptimization()">↺ Reset</button>
+                <button class="sim-btn" onclick="randomizeLandscape()">🎲 New Landscape</button>
+            </div>
+
+            <div class="slider-group">
+                <label>Learning Rate: <span id="lr-val">0.01</span></label>
+                <input type="range" id="lr" min="-4" max="-1" step="0.1" value="-2" onchange="updateLR()">
+            </div>
+
+            <div class="slider-group">
+                <label>Optimizer:</label>
+                <div style="margin-top: 8px;">
+                    <span class="optimizer-card sgd active" onclick="setOptimizer('sgd')">SGD</span>
+                    <span class="optimizer-card momentum" onclick="setOptimizer('momentum')">Momentum</span>
+                    <span class="optimizer-card adam" onclick="setOptimizer('adam')">Adam</span>
+                    <span class="optimizer-card adamw" onclick="setOptimizer('adamw')">AdamW</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conceptual Foundation -->
+        <div class="section">
+            <h2 class="section-title">🎓 Conceptual Foundation</h2>
+
+            <div class="level-toggle">
+                <button class="level-btn active" onclick="showLevel('child')">👶 5-Year-Old</button>
+                <button class="level-btn" onclick="showLevel('teen')">🧑‍🎓 High School</button>
+                <button class="level-btn" onclick="showLevel('engineer')">⚙️ ML Engineer</button>
+            </div>
+
+            <div class="level-content" id="level-child">
+                <h3>🧊 Like Finding the Lowest Spot in a Dark Room</h3>
+                <p>
+                    Imagine you're blindfolded in a hilly field. You want to find the lowest spot.
+                    You can feel which way the ground slopes under your feet. So you always step
+                    downhill. That's what training does — it always tries to go where the error is lower!
+                </p>
+                <div class="analogy">
+                    <strong>Analogy:</strong> The "learning rate" is how big your steps are.
+                    Too big? You might step over the lowest spot and end up on another hill!
+                    Too small? It takes forever to get anywhere.
+                </div>
+            </div>
+
+            <div class="level-content" id="level-teen" style="display:none;">
+                <h3>📐 Gradient Descent</h3>
+                <p>
+                    The loss function measures how wrong the model is. It takes the model's weights
+                    as input and outputs a single number (the loss). Training means finding the weights
+                    that minimize this loss.
+                </p>
+                <p>
+                    We compute the gradient (slope) of the loss with respect to each weight.
+                    Then we update weights in the opposite direction of the gradient — moving "downhill."
+                </p>
+            </div>
+
+            <div class="level-content" id="level-engineer" style="display:none;">
+                <h3>⚙️ Optimization Dynamics</h3>
+                <p>
+                    The loss landscape is non-convex with many local minima, saddle points, and plateaus.
+                    Modern optimizers use momentum and adaptive learning rates to navigate this terrain.
+                </p>
+                <ul style="color: var(--text-secondary); padding-left: 20px; margin: 12px 0;">
+                    <li><strong>SGD:</strong> Noisy, can escape shallow minima but slow to converge</li>
+                    <li><strong>Momentum:</strong> Accumulates velocity, faster convergence</li>
+                    <li><strong>Adam:</strong> Adaptive per-parameter learning rates</li>
+                    <li><strong>AdamW:</strong> Adam with decoupled weight decay (standard for LLMs)</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Optimizer Comparison -->
+        <div class="section">
+            <h2 class="section-title">⚡ Optimizer Race</h2>
+            <p>
+                Watch different optimizers race to the minimum. Each takes a different path
+                through the loss landscape.
+            </p>
+
+            <div class="canvas-container" id="optimizer-canvas" style="height: 400px;">
+                <div class="canvas-label">SGD (cyan) vs Momentum (green) vs Adam (violet) vs AdamW (amber)</div>
+            </div>
+
+            <div class="sim-controls">
+                <button class="sim-btn active" onclick="startRace()">🏁 Start Race</button>
+                <button class="sim-btn" onclick="resetRace()">↺ Reset</button>
+            </div>
+        </div>
+
+        <!-- Loss Curves -->
+        <div class="section">
+            <h2 class="section-title">📈 Loss Curves</h2>
+            <p>
+                The same information viewed from above: loss over training steps.
+            </p>
+
+            <div class="canvas-container" id="loss-canvas" style="height: 300px;">
+                <div class="canvas-label">Training loss over time</div>
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ Warning: Learning Rate Too High</strong>
+                <br>
+                <span style="color: var(--text-secondary);">
+                    When the learning rate is too high, the optimizer overshoots the minimum.
+                    The loss oscillates wildly or even increases. This is called "divergence."
+                </span>
+            </div>
+        </div>
+
+        <!-- Mathematical Deep Dive -->
+        <div class="section">
+            <h2 class="section-title">📐 Mathematical Foundation</h2>
+
+            <h3>Gradient Descent Update Rule</h3>
+            <div class="math-block">
+                θ_{t+1} = θ_t - η · ∇L(θ_t)
+            </div>
+            <p style="color: var(--text-secondary);">
+                Where θ = model weights, η = learning rate, ∇L = gradient of loss
+            </p>
+
+            <h3>Momentum Update</h3>
+            <div class="math-block">
+                v_t = β · v_{t-1} + ∇L(θ_t)<br>
+                θ_{t+1} = θ_t - η · v_t
+            </div>
+            <p style="color: var(--text-secondary);">
+                Momentum accumulates past gradients, smoothing out noise and accelerating convergence.
+            </p>
+
+            <h3>Adam Update</h3>
+            <div class="math-block">
+                m_t = β₁ · m_{t-1} + (1 - β₁) · g_t<br>
+                v_t = β₂ · v_{t-1} + (1 - β₂) · g_t²<br>
+                θ_{t+1} = θ_t - η · m̂_t / (√v̂_t + ε)
+            </div>
+            <p style="color: var(--text-secondary);">
+                Adam adapts learning rates per-parameter using first (m) and second (v) moment estimates.
+            </p>
+        </div>
+
+        <!-- Code Implementation -->
+        <div class="section">
+            <h2 class="section-title">💻 Code Implementation</h2>
+
+            <div class="code-block">
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+
+<span class="keyword">class</span> <span class="string">SGD</span>:
+    <span class="string">"""Stochastic Gradient Descent with optional momentum."""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, lr=<span class="number">0.01</span>, momentum=<span class="number">0.0</span>):
+        self.lr = lr
+        self.momentum = momentum
+        self.velocity = <span class="keyword">None</span>
+
+    <span class="keyword">def</span> <span class="function">step</span>(self, params, grads):
+        <span class="keyword">if</span> self.velocity <span class="keyword">is None</span>:
+            self.velocity = [np.zeros_like(p) <span class="keyword">for</span> p <span class="keyword">in</span> params]
+
+        <span class="keyword">for</span> i <span class="keyword">in</span> range(len(params)):
+            <span class="comment"># Update velocity with momentum</span>
+            self.velocity[i] = self.momentum * self.velocity[i] + grads[i]
+            <span class="comment"># Update parameters</span>
+            params[i] -= self.lr * self.velocity[i]
+
+<span class="keyword">class</span> <span class="string">Adam</span>:
+    <span class="string">"""Adam optimizer with bias correction."""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, lr=<span class="number">0.001</span>, beta1=<span class="number">0.9</span>, beta2=<span class="number">0.999</span>, eps=<span class="number">1e-8</span>):
+        self.lr = lr
+        self.beta1, self.beta2, self.eps = beta1, beta2, eps
+        self.m, self.v, self.t = <span class="keyword">None</span>, <span class="keyword">None</span>, <span class="number">0</span>
+
+    <span class="keyword">def</span> <span class="function">step</span>(self, params, grads):
+        <span class="keyword">if</span> self.m <span class="keyword">is None</span>:
+            self.m = [np.zeros_like(p) <span class="keyword">for</span> p <span class="keyword">in</span> params]
+            self.v = [np.zeros_like(p) <span class="keyword">for</span> p <span class="keyword">in</span> params]
+
+        self.t += <span class="number">1</span>
+        <span class="keyword">for</span> i <span class="keyword">in</span> range(len(params)):
+            <span class="comment"># Update biased first and second moment</span>
+            self.m[i] = self.beta1 * self.m[i] + (<span class="number">1</span> - self.beta1) * grads[i]
+            self.v[i] = self.beta2 * self.v[i] + (<span class="number">1</span> - self.beta2) * grads[i]**<span class="number">2</span>
+
+            <span class="comment"># Bias correction</span>
+            m_hat = self.m[i] / (<span class="number">1</span> - self.beta1**self.t)
+            v_hat = self.v[i] / (<span class="number">1</span> - self.beta2**self.t)
+
+            <span class="comment"># Update parameters</span>
+            params[i] -= self.lr * m_hat / (np.sqrt(v_hat) + self.eps)
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Three.js: Loss Landscape -->
+    <script>
+        // ═══════════════════════════════════════════════════════════
+        // LOSS LANDSCAPE 3D SCENE
+        // ═══════════════════════════════════════════════════════════
+        const landscapeCanvas = document.getElementById('landscape-canvas');
+        const landscapeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        landscapeRenderer.setSize(landscapeCanvas.clientWidth, landscapeCanvas.clientHeight);
+        landscapeRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        landscapeCanvas.insertBefore(landscapeRenderer.domElement, landscapeCanvas.firstChild);
+
+        const landscapeScene = new THREE.Scene();
+        landscapeScene.background = new THREE.Color(0x030712);
+        landscapeScene.fog = new THREE.FogExp2(0x030712, 0.015);
+
+        const landscapeCamera = new THREE.PerspectiveCamera(60, landscapeCanvas.clientWidth / landscapeCanvas.clientHeight, 0.1, 1000);
+        landscapeCamera.position.set(15, 12, 15);
+        landscapeCamera.lookAt(0, 0, 0);
+
+        // Lighting
+        landscapeScene.add(new THREE.AmbientLight(0x404040, 0.5));
+        const landscapeLight = new THREE.PointLight(0xf43f5e, 1, 50);
+        landscapeLight.position.set(10, 15, 10);
+        landscapeScene.add(landscapeLight);
+
+        // Generate loss landscape
+        function lossFunction(x, z) {
+            // Rosenbrock-like with multiple minima
+            return 0.5 * (
+                Math.sin(x * 0.5) * Math.cos(z * 0.5) * 3 +
+                (x * x + z * z) * 0.02 +
+                Math.sin(x * 1.5) * Math.sin(z * 1.5) * 1.5
+            );
+        }
+
+        // Create terrain
+        const terrainSize = 20;
+        const terrainSegments = 100;
+        const terrainGeometry = new THREE.PlaneGeometry(terrainSize, terrainSize, terrainSegments, terrainSegments);
+        terrainGeometry.rotateX(-Math.PI / 2);
+
+        // Set vertex heights
+        const positions = terrainGeometry.attributes.position;
+        const colors = new Float32Array(positions.count * 3);
+
+        for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i);
+            const z = positions.getZ(i);
+            const height = lossFunction(x, z);
+            positions.setY(i, height);
+
+            // Color based on height
+            const t = (height + 3) / 6; // Normalize to [0, 1]
+            const r = t * 0.9 + 0.1;
+            const g = (1 - t) * 0.7;
+            const b = (1 - t) * 0.3;
+            colors[i * 3] = r;
+            colors[i * 3 + 1] = g;
+            colors[i * 3 + 2] = b;
+        }
+
+        terrainGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        terrainGeometry.computeVertexNormals();
+
+        const terrainMaterial = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            metalness: 0.3,
+            roughness: 0.7,
+            side: THREE.DoubleSide,
+        });
+
+        const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+        landscapeScene.add(terrain);
+
+        // Optimization sphere
+        const sphereGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const sphereMaterial = new THREE.MeshStandardMaterial({
+            color: 0x06b6d4,
+            emissive: 0x06b6d4,
+            emissiveIntensity: 0.5,
+        });
+        const optimizerSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        optimizerSphere.position.set(-5, lossFunction(-5, -5), -5);
+        landscapeScene.add(optimizerSphere);
+
+        // Trail
+        const trailPoints = [];
+        const trailGeometry = new THREE.BufferGeometry();
+        const trailMaterial = new THREE.LineBasicMaterial({ color: 0x06b6d4, linewidth: 2 });
+        const trailLine = new THREE.Line(trailGeometry, trailMaterial);
+        landscapeScene.add(trailLine);
+
+        // Optimization state
+        let optX = -5, optZ = -5;
+        let optVX = 0, optVZ = 0;
+        let isOptimizing = false;
+        let optInterval = null;
+        let currentOptimizer = 'sgd';
+        let learningRate = 0.01;
+
+        // Adam state
+        let adamMX = 0, adamMZ = 0, adamVX = 0, adamVZ = 0, adamT = 0;
+
+        function updateLR() {
+            learningRate = Math.pow(10, parseFloat(document.getElementById('lr').value));
+            document.getElementById('lr-val').textContent = learningRate.toFixed(4);
+        }
+
+        function setOptimizer(name) {
+            currentOptimizer = name;
+            document.querySelectorAll('.optimizer-card').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.optimizer-card.${name}`).classList.add('active');
+
+            // Change sphere color
+            const colors = { sgd: 0x06b6d4, momentum: 0x10b981, adam: 0x7c3aed, adamw: 0xf59e0b };
+            sphereMaterial.color.set(colors[name]);
+            sphereMaterial.emissive.set(colors[name]);
+            trailMaterial.color.set(colors[name]);
+        }
+
+        function gradientAt(x, z) {
+            const h = 0.01;
+            return {
+                x: (lossFunction(x + h, z) - lossFunction(x - h, z)) / (2 * h),
+                z: (lossFunction(x, z + h) - lossFunction(x, z - h)) / (2 * h)
+            };
+        }
+
+        function optimizationStep() {
+            const g = gradientAt(optX, optZ);
+
+            switch (currentOptimizer) {
+                case 'sgd':
+                    optX -= learningRate * g.x;
+                    optZ -= learningRate * g.z;
+                    break;
+                case 'momentum':
+                    optVX = 0.9 * optVX + g.x;
+                    optVZ = 0.9 * optVZ + g.z;
+                    optX -= learningRate * optVX;
+                    optZ -= learningRate * optVZ;
+                    break;
+                case 'adam':
+                case 'adamw':
+                    adamT++;
+                    adamMX = 0.9 * adamMX + 0.1 * g.x;
+                    adamMZ = 0.9 * adamMZ + 0.1 * g.z;
+                    adamVX = 0.999 * adamVX + 0.001 * g.x * g.x;
+                    adamVZ = 0.999 * adamVZ + 0.001 * g.z * g.z;
+                    const mHatX = adamMX / (1 - Math.pow(0.9, adamT));
+                    const mHatZ = adamMZ / (1 - Math.pow(0.9, adamT));
+                    const vHatX = adamVX / (1 - Math.pow(0.999, adamT));
+                    const vHatZ = adamVZ / (1 - Math.pow(0.999, adamT));
+                    optX -= learningRate * mHatX / (Math.sqrt(vHatX) + 1e-8);
+                    optZ -= learningRate * mHatZ / (Math.sqrt(vHatZ) + 1e-8);
+
+                    if (currentOptimizer === 'adamw') {
+                        optX -= learningRate * 0.01 * optX;
+                        optZ -= learningRate * 0.01 * optZ;
+                    }
+                    break;
+            }
+
+            // Clamp to terrain bounds
+            optX = Math.max(-10, Math.min(10, optX));
+            optZ = Math.max(-10, Math.min(10, optZ));
+
+            const height = lossFunction(optX, optZ);
+            optimizerSphere.position.set(optX, height + 0.3, optZ);
+
+            // Update trail
+            trailPoints.push(new THREE.Vector3(optX, height + 0.1, optZ));
+            if (trailPoints.length > 500) trailPoints.shift();
+            trailGeometry.setFromPoints(trailPoints);
+        }
+
+        function startOptimization() {
+            if (isOptimizing) return;
+            isOptimizing = true;
+            optInterval = setInterval(optimizationStep, 50);
+        }
+
+        function resetOptimization() {
+            isOptimizing = false;
+            clearInterval(optInterval);
+            optX = -5; optZ = -5;
+            optVX = 0; optVZ = 0;
+            adamMX = 0; adamMZ = 0; adamVX = 0; adamVZ = 0; adamT = 0;
+            optimizerSphere.position.set(-5, lossFunction(-5, -5) + 0.3, -5);
+            trailPoints.length = 0;
+            trailGeometry.setFromPoints([]);
+        }
+
+        function randomizeLandscape() {
+            resetOptimization();
+            const seed = Math.random() * 100;
+            for (let i = 0; i < positions.count; i++) {
+                const x = positions.getX(i);
+                const z = positions.getZ(i);
+                const height = lossFunction(x + seed, z + seed);
+                positions.setY(i, height);
+
+                const t = (height + 3) / 6;
+                colors[i * 3] = t * 0.9 + 0.1;
+                colors[i * 3 + 1] = (1 - t) * 0.7;
+                colors[i * 3 + 2] = (1 - t) * 0.3;
+            }
+            terrainGeometry.attributes.position.needsUpdate = true;
+            terrainGeometry.attributes.color.needsUpdate = true;
+            terrainGeometry.computeVertexNormals();
+        }
+
+        // Mouse interaction
+        let lMouseX = 0, lMouseY = 0;
+        landscapeCanvas.addEventListener('mousemove', (e) => {
+            const rect = landscapeCanvas.getBoundingClientRect();
+            lMouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            lMouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        });
+
+        // Animation
+        function animateLandscape() {
+            requestAnimationFrame(animateLandscape);
+            landscapeCamera.position.x += (lMouseX * 5 + 15 - landscapeCamera.position.x) * 0.02;
+            landscapeCamera.position.y += (lMouseY * 3 + 12 - landscapeCamera.position.y) * 0.02;
+            landscapeCamera.lookAt(0, 0, 0);
+            landscapeRenderer.render(landscapeScene, landscapeCamera);
+        }
+        animateLandscape();
+
+        // Resize
+        window.addEventListener('resize', () => {
+            landscapeCamera.aspect = landscapeCanvas.clientWidth / landscapeCanvas.clientHeight;
+            landscapeCamera.updateProjectionMatrix();
+            landscapeRenderer.setSize(landscapeCanvas.clientWidth, landscapeCanvas.clientHeight);
+        });
+
+        // Level toggle
+        function showLevel(level) {
+            document.querySelectorAll('.level-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.level-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('level-' + level).style.display = 'block';
+            event.target.classList.add('active');
+        }
+
+        // Optimizer race placeholder
+        function startRace() { console.log('Race started'); }
+        function resetRace() { console.log('Race reset'); }
+    </script>
+
+</body>
+</html>

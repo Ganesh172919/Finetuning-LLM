@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QLoRA & Quantization — NeuralForge Academy</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; overflow-x: hidden; }
+
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(10,10,26,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid #2a2a4a; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+.nav .back { color: #7c4dff; text-decoration: none; font-size: 14px; }
+.nav .title { font-size: 16px; font-weight: 600; }
+.nav .progress { font-size: 12px; color: #888; }
+
+.main { margin-top: 60px; }
+.hero { height: 50vh; position: relative; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+.hero canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.hero-content { position: relative; z-index: 2; }
+.hero-content h1 { font-size: 42px; background: linear-gradient(90deg, #06b6d4, #10b981, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 12px; }
+.hero-content p { font-size: 18px; color: #aaa; max-width: 600px; margin: 0 auto; }
+
+.section { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+.section h2 { font-size: 28px; margin-bottom: 24px; color: #06b6d4; }
+
+.demo-container { background: #111128; border: 1px solid #2a2a4a; border-radius: 16px; padding: 24px; margin-bottom: 32px; }
+.demo-canvas { width: 100%; height: 400px; border-radius: 8px; background: #08081a; }
+
+.controls { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; align-items: center; }
+.controls label { font-size: 13px; color: #888; }
+.controls input[type="range"] { accent-color: #06b6d4; width: 120px; }
+.controls select, .controls button { background: #1a1a3a; color: #e0e0e0; border: 1px solid #2a2a4a; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.controls button:hover { border-color: #06b6d4; }
+.controls button.active { background: #06b6d4; border-color: #06b6d4; color: #0a0a1a; font-weight: 600; }
+
+.concept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin: 24px 0; }
+.concept-card { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; transition: all 0.3s; }
+.concept-card:hover { border-color: #06b6d4; transform: translateY(-2px); }
+.concept-card h4 { color: #06b6d4; margin-bottom: 8px; }
+.concept-card p { font-size: 13px; color: #aaa; line-height: 1.6; }
+.concept-card .formula { background: #0a0a1a; border-radius: 6px; padding: 12px; margin: 12px 0; font-family: monospace; font-size: 13px; color: #26de81; text-align: center; }
+
+.stats-bar { display: flex; gap: 24px; margin: 16px 0; flex-wrap: wrap; }
+.stat { background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 8px; padding: 12px 16px; min-width: 140px; }
+.stat .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.stat .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+
+.level-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.level-tab { padding: 8px 16px; border-radius: 6px; border: 1px solid #2a2a4a; background: transparent; color: #888; cursor: pointer; font-size: 13px; }
+.level-tab.active { background: #06b6d4; border-color: #06b6d4; color: #0a0a1a; }
+
+.quiz { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; margin: 24px 0; }
+.quiz h3 { color: #f9ca24; margin-bottom: 16px; }
+.quiz-option { padding: 12px 16px; background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; font-size: 14px; }
+.quiz-option:hover { border-color: #06b6d4; }
+.quiz-option.correct { border-color: #26de81; background: #26de8115; }
+.quiz-option.wrong { border-color: #ff6b6b; background: #ff6b6b15; }
+.quiz-feedback { font-size: 13px; margin-top: 8px; padding: 10px; border-radius: 6px; display: none; }
+.quiz-feedback.show { display: block; }
+
+.comparison-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+.comparison-table th { background: #1a1a3a; padding: 12px; text-align: left; color: #06b6d4; font-weight: 600; border-bottom: 2px solid #2a2a4a; }
+.comparison-table td { padding: 10px 12px; border-bottom: 1px solid #1a1a3a; }
+.comparison-table tr:hover { background: #111128; }
+
+/* Bit visualization */
+.bit-grid { display: flex; gap: 4px; margin: 8px 0; align-items: center; }
+.bit { width: 32px; height: 32px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; font-family: monospace; }
+.bit.b16 { background: #7c4dff40; color: #7c4dff; border: 1px solid #7c4dff; }
+.bit.b8 { background: #06b6d440; color: #06b6d4; border: 1px solid #06b6d4; }
+.bit.b4 { background: #10b98140; color: #10b981; border: 1px solid #10b981; }
+.bit.b2 { background: #f59e0b40; color: #f59e0b; border: 1px solid #f59e0b; }
+.bit.sign { background: #f43f5e40; color: #f43f5e; border: 1px solid #f43f5e; }
+
+.playground { background: #0a0a1a; border: 1px solid #2a2a4a; border-radius: 8px; overflow: hidden; margin: 16px 0; }
+.playground-header { background: #1a1a3a; padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; }
+.playground-header .dots { display: flex; gap: 6px; }
+.playground-header .dot { width: 10px; height: 10px; border-radius: 50%; }
+.playground-header .dot.r { background: #ff5f57; }
+.playground-header .dot.y { background: #ffbd2e; }
+.playground-header .dot.g { background: #28c840; }
+.playground-code { padding: 16px; font-family: 'Fira Code', monospace; font-size: 13px; line-height: 1.7; overflow-x: auto; color: #ccc; }
+.playground-code .kw { color: #c678dd; }
+.playground-code .fn { color: #61afef; }
+.playground-code .str { color: #98c379; }
+.playground-code .num { color: #d19a66; }
+.playground-code .cmt { color: #5c6370; font-style: italic; }
+.playground-output { background: #111128; padding: 16px; border-top: 1px solid #2a2a4a; font-family: monospace; font-size: 12px; color: #26de81; min-height: 60px; white-space: pre-wrap; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+    <a href="../index.html" class="back">← Back to Academy</a>
+    <span class="title">Module 3.5: QLoRA & Quantization</span>
+    <span class="progress">Track 3 · Fine-Tuning</span>
+</nav>
+
+<div class="hero">
+    <canvas id="heroCanvas"></canvas>
+    <div class="hero-content">
+        <h1>QLoRA & Quantization</h1>
+        <p>Fine-tune 65B models on a single 48GB GPU — 4-bit quantization + LoRA = accessible AI</p>
+    </div>
+</div>
+
+<div class="main">
+    <div class="section">
+        <div class="level-tabs">
+            <button class="level-tab active" onclick="setLevel('beginner')">Beginner</button>
+            <button class="level-tab" onclick="setLevel('intermediate')">Intermediate</button>
+            <button class="level-tab" onclick="setLevel('advanced')">Advanced</button>
+            <button class="level-tab" onclick="setLevel('expert')">Expert</button>
+        </div>
+
+        <div id="level-beginner">
+            <h2>What is QLoRA?</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>Zipping a Filing Cabinet</h4>
+                    <p>Imagine a massive filing cabinet (your model). Full fine-tuning needs you to copy the entire cabinet. QLoRA compresses it to 1/4 size (4-bit), then adds small sticky notes (LoRA adapters) for new knowledge. The cabinet stays compressed; only the notes are trained.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Why 4-bit?</h4>
+                    <p>A 65B model in FP16 needs 130GB. In 4-bit, it needs ~33GB — fits on a single A100! Combined with LoRA's small adapter, you can fine-tune it with just 48GB total GPU memory.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>The Magic: NF4</h4>
+                    <p>Regular 4-bit quantization loses information unevenly. NF4 (NormalFloat4) is designed specifically for neural network weights, which follow a normal distribution. It places quantization levels where the data actually is.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="level-intermediate" style="display:none;">
+            <h2>How QLoRA Works</h2>
+            <div class="concept-card" style="max-width:800px;">
+                <h4>The 3 Innovations</h4>
+                <p><strong>1. NF4 Quantization:</strong> 4-bit data type optimized for normal distributions. Uses quantile-based mapping to place levels at optimal positions.</p>
+                <div class="formula">NF4 levels = quantiles of N(0,1) mapped to 16 bins</div>
+                <p><strong>2. Double Quantization:</strong> Quantize the quantization constants themselves. FP32 → FP8 → NF4 saves an additional 0.37 bits per parameter.</p>
+                <p><strong>3. Paged Optimizers:</strong> Use CPU memory for optimizer states when GPU memory runs out, via NVIDIA unified memory.</p>
+                <p><strong>Total memory formula:</strong></p>
+                <div class="formula">M = (P × b) / 8 + (P × b_r) / 8 + overhead</div>
+                <p>Where P = params, b = bits per param (4), b_r = LoRA bits (16), overhead ≈ 1-2GB</p>
+            </div>
+        </div>
+
+        <div id="level-advanced" style="display:none;">
+            <h2>NF4 Quantization Deep Dive</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>Quantile Quantization</h4>
+                    <p>NF4 divides the normal distribution into 16 equal-probability bins. Each bin boundary is at a quantile of N(0,1). This ensures each quantization level represents equal probability mass, minimizing expected quantization error.</p>
+                    <div class="formula">q_i = Φ⁻¹(i/16) for i = 0,1,...,15</div>
+                    <p>Where Φ⁻¹ is the inverse CDF (probit function) of the standard normal.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>Block-wise Quantization</h4>
+                    <p>Weights are grouped into blocks of 64. Each block gets its own scaling factor (absmax). This handles outliers: a single large weight doesn't waste precision for the rest.</p>
+                    <div class="formula">w_q = round(w / block_scale × 7) → NF4 level</div>
+                </div>
+                <div class="concept-card">
+                    <h4>Double Quantization</h4>
+                    <p>The block scales (FP32) are themselves quantized to FP8 with block size 256. This saves 0.37 bits/param: (32/64 - 8/64) = 0.375. For 65B params, that's ~3GB saved.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="level-expert" style="display:none;">
+            <h2>Research Frontiers</h2>
+            <div class="concept-grid">
+                <div class="concept-card">
+                    <h4>GPTQ: Post-Training Quantization</h4>
+                    <p>Layer-wise quantization using Hessian information. Quantizes one column at a time, compensating errors in remaining columns. No fine-tuning needed — just calibration data.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>AWQ: Activation-Aware Weight Quantization</h4>
+                    <p>Identifies salient weights by observing activations, not weights. Scales important channels before quantization to protect them. Better than GPTQ at 3-4 bits.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>GGUF / llama.cpp</h4>
+                    <p>Runtime quantization format supporting Q2_K through Q8_0. Uses k-quant (mixed precision) with different quantization for attention vs FFN layers. Enables CPU inference.</p>
+                </div>
+                <div class="concept-card">
+                    <h4>QuIP# and AQLM</h4>
+                    <p>Research methods using incoherence processing and multi-codebook quantization. Achieve 2-bit quantization with minimal perplexity loss. Frontier of extreme compression.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive: Bit-Level Visualization -->
+    <div class="section">
+        <h2>Interactive: Quantization Bit Formats</h2>
+        <div class="demo-container">
+            <h3>See How Numbers Are Stored</h3>
+            <canvas id="bitCanvas" class="demo-canvas" width="1100" height="350"></canvas>
+            <div class="controls">
+                <label>Value: <input type="range" id="valueSlider" min="-1" max="1" step="0.01" value="0.42" oninput="updateBits()"><span id="valueDisplay">0.42</span></label>
+                <button class="active" onclick="setBitFormat('fp16', this)">FP16</button>
+                <button onclick="setBitFormat('int8', this)">INT8</button>
+                <button onclick="setBitFormat('nf4', this)">NF4</button>
+                <button onclick="setBitFormat('int4', this)">INT4</button>
+            </div>
+            <div class="stats-bar">
+                <div class="stat"><div class="label">Bits Used</div><div class="value" style="color:#06b6d4" id="bitsUsed">16</div></div>
+                <div class="stat"><div class="label">Quantized Value</div><div class="value" style="color:#10b981" id="quantValue">0.420</div></div>
+                <div class="stat"><div class="label">Error</div><div class="value" style="color:#f43f5e" id="quantError">0.000</div></div>
+                <div class="stat"><div class="label">Memory (65B)</div><div class="value" style="color:#f59e0b" id="memUsage">130 GB</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive: Memory Calculator -->
+    <div class="section">
+        <h2>Interactive: QLoRA Memory Calculator</h2>
+        <div class="demo-container">
+            <h3>Calculate GPU Memory Requirements</h3>
+            <canvas id="memCanvas" class="demo-canvas" width="1100" height="300"></canvas>
+            <div class="controls">
+                <label>Model Size: <select id="modelSize" onchange="updateMemory()">
+                    <option value="1">1B</option>
+                    <option value="3">3B</option>
+                    <option value="7" selected>7B</option>
+                    <option value="13">13B</option>
+                    <option value="34">34B</option>
+                    <option value="65">65B</option>
+                    <option value="70">70B</option>
+                </select></label>
+                <label>LoRA Rank: <input type="range" id="loraRank" min="1" max="128" value="16" oninput="updateMemory()"><span id="rankDisplay">16</span></label>
+                <label>Quant Bits: <select id="quantBits" onchange="updateMemory()">
+                    <option value="16">FP16</option>
+                    <option value="8">INT8</option>
+                    <option value="4" selected>NF4</option>
+                    <option value="2">INT2</option>
+                </select></label>
+            </div>
+            <div class="stats-bar">
+                <div class="stat"><div class="label">Base Model</div><div class="value" style="color:#7c4dff" id="baseMem">13 GB</div></div>
+                <div class="stat"><div class="label">LoRA Adapters</div><div class="value" style="color:#10b981" id="loraMem">0.2 GB</div></div>
+                <div class="stat"><div class="label">Optimizer</div><div class="value" style="color:#f59e0b" id="optimMem">0.8 GB</div></div>
+                <div class="stat"><div class="label">Total Required</div><div class="value" style="color:#06b6d4" id="totalMem">14 GB</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Code Playground -->
+    <div class="section">
+        <h2>Code Playground</h2>
+        <div class="demo-container">
+            <h3>QLoRA in Practice</h3>
+            <div class="playground">
+                <div class="playground-header">
+                    <div class="dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
+                    <button onclick="runPlayground()" style="background:#26de81;color:#0a0a1a;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-weight:600;">▶ Run</button>
+                </div>
+                <pre class="playground-code"><span class="kw">from</span> transformers <span class="kw">import</span> AutoModelForCausalLM, BitsAndBytesConfig
+<span class="kw">from</span> peft <span class="kw">import</span> LoraConfig, get_peft_model, prepare_model_for_kbit_training
+
+<span class="cmt"># 4-bit quantization config (QLoRA)</span>
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=<span class="num">True</span>,
+    bnb_4bit_quant_type=<span class="str">"nf4"</span>,           <span class="cmt"># NormalFloat4</span>
+    bnb_4bit_compute_dtype=torch.float16,  <span class="cmt"># Compute in FP16</span>
+    bnb_4bit_use_double_quant=<span class="num">True</span>,       <span class="cmt"># Double quantization</span>
+)
+
+<span class="cmt"># Load model in 4-bit</span>
+model = AutoModelForCausalLM.from_pretrained(
+    <span class="str">"meta-llama/Llama-2-7b"</span>,
+    quantization_config=bnb_config,
+    device_map=<span class="str">"auto"</span>,
+)
+
+<span class="cmt"># Prepare for QLoRA training</span>
+model = prepare_model_for_kbit_training(model)
+
+<span class="cmt"># LoRA configuration</span>
+lora_config = LoraConfig(
+    r=<span class="num">16</span>,                    <span class="cmt"># Rank</span>
+    lora_alpha=<span class="num">32</span>,            <span class="cmt"># Scaling factor</span>
+    target_modules=[<span class="str">"q_proj"</span>, <span class="str">"v_proj"</span>, <span class="str">"k_proj"</span>, <span class="str">"o_proj"</span>],
+    lora_dropout=<span class="num">0.05</span>,
+    bias=<span class="str">"none"</span>,
+    task_type=<span class="str">"CAUSAL_LM"</span>,
+)
+
+<span class="cmt"># Apply LoRA</span>
+model = get_peft_model(model, lora_config)
+model.print_trainable_parameters()
+<span class="cmt"># Output: trainable params: 4,194,304 || all params: 3,504,484,352 || 0.12%</span></pre>
+                <div class="playground-output" id="playgroundOutput">Click "Run" to see QLoRA in action...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Table -->
+    <div class="section">
+        <h2>Quantization Methods Comparison</h2>
+        <div class="demo-container">
+            <table class="comparison-table">
+                <thead>
+                    <tr><th>Method</th><th>Bits</th><th>Quality</th><th>Speed</th><th>Memory (7B)</th><th>Use Case</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>FP32</strong></td><td>32</td><td>★★★★★</td><td>1×</td><td>28 GB</td><td>Training baseline</td></tr>
+                    <tr><td><strong>FP16/BF16</strong></td><td>16</td><td>★★★★★</td><td>2×</td><td>14 GB</td><td>Standard training</td></tr>
+                    <tr><td><strong>INT8</strong></td><td>8</td><td>★★★★☆</td><td>2-3×</td><td>7 GB</td><td>Inference, LLM.int8()</td></tr>
+                    <tr><td><strong>NF4 (QLoRA)</strong></td><td>4</td><td>★★★★☆</td><td>3-4×</td><td>3.5 GB</td><td>Fine-tuning on consumer GPUs</td></tr>
+                    <tr><td><strong>GPTQ</strong></td><td>4</td><td>★★★★☆</td><td>3-4×</td><td>3.5 GB</td><td>Post-training inference</td></tr>
+                    <tr><td><strong>AWQ</strong></td><td>4</td><td>★★★★★</td><td>3-4×</td><td>3.5 GB</td><td>Best quality 4-bit</td></tr>
+                    <tr><td><strong>GGUF Q4_K_M</strong></td><td>4.5</td><td>★★★★☆</td><td>2-3×</td><td>4 GB</td><td>CPU inference</td></tr>
+                    <tr><td><strong>INT2/QuIP#</strong></td><td>2</td><td>★★★☆☆</td><td>5-6×</td><td>1.75 GB</td><td>Extreme compression</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Quiz -->
+    <div class="section">
+        <h2>Test Your Knowledge</h2>
+        <div class="quiz">
+            <h3>🧠 QLoRA & Quantization Quiz</h3>
+
+            <div class="quiz-question" data-correct="2">
+                <p>1. What makes NF4 better than regular INT4 for neural network weights?</p>
+                <div class="quiz-option" onclick="checkAnswer(this,0)">A) NF4 uses fewer bits</div>
+                <div class="quiz-option" onclick="checkAnswer(this,1)">B) NF4 is faster to compute</div>
+                <div class="quiz-option" onclick="checkAnswer(this,2)">C) NF4 places quantization levels at normal distribution quantiles</div>
+                <div class="quiz-option" onclick="checkAnswer(this,3)">D) NF4 doesn't need a scaling factor</div>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question" data-correct="1">
+                <p>2. What is "double quantization" in QLoRA?</p>
+                <div class="quiz-option" onclick="checkAnswer(this,0)">A) Quantizing the model twice</div>
+                <div class="quiz-option" onclick="checkAnswer(this,1)">B) Quantizing the quantization constants (scaling factors) themselves</div>
+                <div class="quiz-option" onclick="checkAnswer(this,2)">C) Using two different quantization methods</div>
+                <div class="quiz-option" onclick="checkAnswer(this,3)">D) Quantizing both weights and activations</div>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question" data-correct="3">
+                <p>3. How much memory does a 7B model need in NF4 (approximately)?</p>
+                <div class="quiz-option" onclick="checkAnswer(this,0)">A) 14 GB</div>
+                <div class="quiz-option" onclick="checkAnswer(this,1)">B) 7 GB</div>
+                <div class="quiz-option" onclick="checkAnswer(this,2)">C) 1.75 GB</div>
+                <div class="quiz-option" onclick="checkAnswer(this,3)">D) 3.5 GB</div>
+                <div class="quiz-feedback"></div>
+            </div>
+
+            <div class="quiz-question" data-correct="0">
+                <p>4. Why does QLoRA use block-wise quantization?</p>
+                <div class="quiz-option" onclick="checkAnswer(this,0)">A) To handle outliers — each block gets its own scale</div>
+                <div class="quiz-option" onclick="checkAnswer(this,1)">B) To make the quantization faster</div>
+                <div class="quiz-option" onclick="checkAnswer(this,2)">C) To reduce the number of bits needed</div>
+                <div class="quiz-option" onclick="checkAnswer(this,3)">D) To enable parallel processing</div>
+                <div class="quiz-feedback"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function setLevel(level) {
+    ['beginner','intermediate','advanced','expert'].forEach(l => {
+        document.getElementById('level-'+l).style.display = l===level?'block':'none';
+    });
+    document.querySelectorAll('.level-tab').forEach(t=>t.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════
+// HERO — Quantization bit particle animation
+// ═══════════════════════════════════════════════════════════
+(function(){
+    const canvas = document.getElementById('heroCanvas');
+    const ctx = canvas.getContext('2d');
+    let W,H,t=0;
+
+    function resize(){W=canvas.width=canvas.offsetWidth;H=canvas.height=canvas.offsetHeight;}
+    window.addEventListener('resize',resize);resize();
+
+    const bits = [];
+    for(let i=0;i<200;i++){
+        bits.push({
+            x: Math.random()*W, y: Math.random()*H,
+            vx: (Math.random()-0.5)*2, vy: (Math.random()-0.5)*2,
+            size: Math.random()*4+2,
+            precision: ['fp32','fp16','int8','nf4'][Math.floor(Math.random()*4)],
+            value: Math.random()
+        });
+    }
+
+    const colors = {fp32:'#f43f5e',fp16:'#7c4dff',int8:'#06b6d4',nf4:'#10b981'};
+
+    function draw(){
+        ctx.fillStyle='rgba(10,10,26,0.12)';ctx.fillRect(0,0,W,H);
+        t+=0.015;
+
+        // Draw quantization funnel
+        const cx=W/2,cy=H/2;
+        const levels = [{y:cy-100,w:300,label:'FP32',color:'#f43f5e'},
+                        {y:cy-30,w:200,label:'FP16',color:'#7c4dff'},
+                        {y:cy+40,w:120,label:'INT8',color:'#06b6d4'},
+                        {y:cy+110,w:60,label:'NF4',color:'#10b981'}];
+
+        levels.forEach(l=>{
+            ctx.strokeStyle=l.color+'30';ctx.lineWidth=2;
+            ctx.beginPath();
+            ctx.moveTo(cx-l.w/2,l.y);ctx.lineTo(cx+l.w/2,l.y);
+            ctx.stroke();
+            ctx.fillStyle=l.color+'60';ctx.font='bold 14px monospace';
+            ctx.fillText(l.label,cx-l.w/2-50,l.y+5);
+        });
+
+        // Animate bits falling through funnel
+        bits.forEach(b=>{
+            b.x+=b.vx;b.y+=b.vy;
+            b.vy+=0.02; // Gravity
+
+            // Funnel compression
+            const funnelProgress = (b.y-cy+100)/250;
+            if(funnelProgress>0&&funnelProgress<1){
+                const targetW = 300*(1-funnelProgress*0.8);
+                if(Math.abs(b.x-cx)>targetW/2){
+                    b.vx+=(cx-b.x)*0.01;
+                }
+            }
+
+            // Wrap
+            if(b.y>H+20){b.y=-20;b.x=Math.random()*W;b.vy=Math.random();}
+            if(b.x<0)b.x=W;if(b.x>W)b.x=0;
+
+            ctx.fillStyle=colors[b.precision];
+            ctx.beginPath();ctx.arc(b.x,b.y,b.size,0,Math.PI*2);ctx.fill();
+        });
+
+        // Labels
+        ctx.fillStyle='#ffffff30';ctx.font='bold 20px Inter';
+        ctx.fillText('Quantization Funnel',cx-100,cy-150);
+
+        requestAnimationFrame(draw);
+    }
+    draw();
+})();
+
+// ═══════════════════════════════════════════════════════════
+// BIT FORMAT VISUALIZATION
+// ═══════════════════════════════════════════════════════════
+let currentFormat = 'fp16';
+
+function setBitFormat(fmt, btn) {
+    currentFormat = fmt;
+    document.querySelectorAll('.controls button').forEach(b=>b.classList.remove('active'));
+    if(btn)btn.classList.add('active');
+    updateBits();
+}
+
+function updateBits() {
+    const val = parseFloat(document.getElementById('valueSlider').value);
+    document.getElementById('valueDisplay').textContent = val.toFixed(2);
+
+    const canvas = document.getElementById('bitCanvas');
+    const ctx = canvas.getContext('2d');
+    const W=canvas.width, H=canvas.height;
+    ctx.fillStyle='#08081a';ctx.fillRect(0,0,W,H);
+
+    // Quantize based on format
+    let qVal, bits, memGB, error;
+
+    if(currentFormat==='fp16'){
+        // FP16: 1 sign + 5 exp + 10 mantissa
+        bits = 16;
+        qVal = Math.round(val * 1024) / 1024; // Simulated FP16 precision
+        memGB = 130; // 65B * 16 bits
+        drawFP16(ctx,W,H,val);
+    } else if(currentFormat==='int8'){
+        bits = 8;
+        qVal = Math.round(val * 127) / 127;
+        memGB = 65;
+        drawINT8(ctx,W,H,val);
+    } else if(currentFormat==='nf4'){
+        bits = 4;
+        // NF4 levels (approximate quantiles of N(0,1))
+        const nf4Levels = [-1.0,-0.6962,-0.5251,-0.3949,-0.2844,-0.1848,-0.0911,0.0,
+                           0.0796,0.1609,0.2461,0.3379,0.4407,0.5626,0.7230,1.0];
+        let closest = nf4Levels[0];
+        let minDist = Math.abs(val - closest);
+        for(const l of nf4Levels){
+            if(Math.abs(val-l)<minDist){closest=l;minDist=Math.abs(val-l);}
+        }
+        qVal = closest;
+        memGB = 32.5;
+        drawNF4(ctx,W,H,val,nf4Levels);
+    } else {
+        bits = 4;
+        qVal = Math.round(val * 7) / 7;
+        memGB = 32.5;
+        drawINT4(ctx,W,H,val);
+    }
+
+    error = Math.abs(val - qVal);
+
+    document.getElementById('bitsUsed').textContent = bits;
+    document.getElementById('quantValue').textContent = qVal.toFixed(3);
+    document.getElementById('quantError').textContent = error.toFixed(4);
+    document.getElementById('memUsage').textContent = memGB + ' GB';
+}
+
+function drawFP16(ctx,W,H,val){
+    // Draw FP16 bit layout: 1 sign + 5 exp + 10 mantissa
+    const startX = 50, y = H/2 - 20;
+    const bitW = 40, bitH = 40;
+
+    ctx.fillStyle='#fff';ctx.font='bold 16px Inter';
+    ctx.fillText('FP16 Format (16 bits)',startX,50);
+    ctx.fillText('Value: '+val.toFixed(4),startX,80);
+
+    // Sign bit
+    const sign = val<0?1:0;
+    drawBit(ctx,startX,y,bitW,bitH,sign,'Sign','#f43f5e');
+
+    // Exponent (5 bits)
+    const exp = Math.floor(Math.log2(Math.abs(val)+1e-10))+15;
+    for(let i=0;i<5;i++){
+        const bit = (exp>>(4-i))&1;
+        drawBit(ctx,startX+(i+1)*(bitW+4),y,bitW,bitH,bit,'Exp','#7c4dff');
+    }
+
+    // Mantissa (10 bits)
+    const mantissa = Math.abs(val) * 1024;
+    for(let i=0;i<10;i++){
+        const bit = (Math.floor(mantissa)>>(9-i))&1;
+        drawBit(ctx,startX+(i+6)*(bitW+4),y,bitW,bitH,bit,'Mant','#06b6d4');
+    }
+
+    // Precision line
+    ctx.strokeStyle='#7c4dff40';ctx.lineWidth=1;
+    ctx.setLineDash([5,5]);
+    ctx.beginPath();ctx.moveTo(startX,y+bitH+20);ctx.lineTo(startX+16*(bitW+4),y+bitH+20);ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+function drawINT8(ctx,W,H,val){
+    const startX = 50, y = H/2 - 20;
+    const bitW = 50, bitH = 40;
+
+    ctx.fillStyle='#fff';ctx.font='bold 16px Inter';
+    ctx.fillText('INT8 Format (8 bits)',startX,50);
+    ctx.fillText('Value: '+val.toFixed(4)+' → Quantized: '+(Math.round(val*127)/127).toFixed(4),startX,80);
+
+    const quantized = Math.round(val*127);
+    for(let i=0;i<8;i++){
+        const bit = (Math.abs(quantized)>>(7-i))&1;
+        drawBit(ctx,startX+i*(bitW+4),y,bitW,bitH,bit,'INT8','#06b6d4');
+    }
+}
+
+function drawNF4(ctx,W,H,val,levels){
+    const startX = 50, y = 60;
+
+    ctx.fillStyle='#fff';ctx.font='bold 16px Inter';
+    ctx.fillText('NF4 Format (4 bits) — 16 Levels',startX,30);
+
+    // Draw NF4 levels as a distribution
+    const barW = 50, totalW = levels.length*(barW+8);
+    const barStartX = (W-totalW)/2;
+
+    // Normal distribution curve
+    ctx.strokeStyle='#10b98140';ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let i=0;i<totalW;i++){
+        const x = barStartX+i;
+        const z = (i/totalW-0.5)*6;
+        const y2 = H-80-Math.exp(-z*z/2)*150;
+        i===0?ctx.moveTo(x,y2):ctx.lineTo(x,y2);
+    }
+    ctx.stroke();
+
+    // Find closest level to val
+    let closestIdx = 0, minDist = Infinity;
+    levels.forEach((l,i)=>{if(Math.abs(val-l)<minDist){closestIdx=i;minDist=Math.abs(val-l);}});
+
+    // Draw levels
+    levels.forEach((l,i)=>{
+        const x = barStartX + i*(barW+8);
+        const isClosest = i===closestIdx;
+        const z = (i/levels.length-0.5)*6;
+        const barH = Math.exp(-z*z/2)*150;
+
+        ctx.fillStyle = isClosest?'#10b981':'#10b98140';
+        ctx.fillRect(x,H-80-barH,barW,barH);
+
+        if(isClosest){
+            ctx.strokeStyle='#10b981';ctx.lineWidth=2;
+            ctx.strokeRect(x,H-80-barH,barW,barH);
+        }
+
+        ctx.fillStyle=isClosest?'#10b981':'#555';ctx.font='10px monospace';
+        ctx.fillText(l.toFixed(2),x+5,H-60-barH-5);
+    });
+
+    ctx.fillStyle='#aaa';ctx.font='12px Inter';
+    ctx.fillText('▲ Your value maps to level '+closestIdx+' ('+levels[closestIdx].toFixed(3)+')',barStartX,H-40);
+}
+
+function drawINT4(ctx,W,H,val){
+    const startX = 50, y = H/2 - 20;
+    const bitW = 80, bitH = 40;
+
+    ctx.fillStyle='#fff';ctx.font='bold 16px Inter';
+    ctx.fillText('INT4 Format (4 bits) — 16 levels, uniform',startX,50);
+
+    const quantized = Math.round(val*7);
+    for(let i=0;i<4;i++){
+        const bit = (Math.abs(quantized)>>(3-i))&1;
+        drawBit(ctx,startX+i*(bitW+4),y,bitW,bitH,bit,'INT4','#f59e0b');
+    }
+}
+
+function drawBit(ctx,x,y,w,h,bit,label,color){
+    ctx.fillStyle=bit?color+'60':'#1a1a3a';
+    ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle=color;ctx.lineWidth=1;
+    ctx.strokeRect(x,y,w,h);
+    ctx.fillStyle=bit?'#fff':'#444';ctx.font='bold 16px monospace';
+    ctx.fillText(bit,x+w/2-5,y+h/2+6);
+    ctx.fillStyle='#555';ctx.font='9px monospace';
+    ctx.fillText(label,x+2,y-5);
+}
+
+// ═══════════════════════════════════════════════════════════
+// MEMORY CALCULATOR
+// ═══════════════════════════════════════════════════════════
+function updateMemory() {
+    const params = parseInt(document.getElementById('modelSize').value)*1e9;
+    const loraRank = parseInt(document.getElementById('loraRank').value);
+    const quantBits = parseInt(document.getElementById('quantBits').value);
+    document.getElementById('rankDisplay').textContent = loraRank;
+
+    // Base model memory
+    const baseGB = (params * quantBits) / (8 * 1e9);
+
+    // LoRA memory (2 matrices per layer, ~32 layers, FP16)
+    const hiddenDim = Math.sqrt(params/32); // Rough estimate
+    const loraParams = 32 * 2 * hiddenDim * loraRank; // 32 layers, 2 matrices
+    const loraGB = (loraParams * 16) / (8 * 1e9);
+
+    // Optimizer (AdamW: 2 states per trainable param in FP32)
+    const optimGB = (loraParams * 32 * 2) / (8 * 1e9);
+
+    // Overhead
+    const overhead = 1.5;
+
+    const total = baseGB + loraGB + optimGB + overhead;
+
+    document.getElementById('baseMem').textContent = baseGB.toFixed(1)+' GB';
+    document.getElementById('loraMem').textContent = loraGB.toFixed(2)+' GB';
+    document.getElementById('optimMem').textContent = optimGB.toFixed(2)+' GB';
+    document.getElementById('totalMem').textContent = total.toFixed(1)+' GB';
+
+    drawMemoryChart(baseGB, loraGB, optimGB, overhead, total);
+}
+
+function drawMemoryChart(base, lora, optim, overhead, total) {
+    const canvas = document.getElementById('memCanvas');
+    const ctx = canvas.getContext('2d');
+    const W=canvas.width, H=canvas.height;
+    ctx.fillStyle='#08081a';ctx.fillRect(0,0,W,H);
+
+    const barH = 50;
+    const maxW = W - 200;
+    const y = H/2 - barH/2;
+
+    // Stacked bar
+    const segments = [
+        {name:'Base Model',gb:base,color:'#7c4dff'},
+        {name:'LoRA',gb:lora,color:'#10b981'},
+        {name:'Optimizer',gb:optim,color:'#f59e0b'},
+        {name:'Overhead',gb:overhead,color:'#f43f5e'}
+    ];
+
+    let x = 100;
+    segments.forEach(s=>{
+        const w = (s.gb/total)*maxW;
+        ctx.fillStyle=s.color;
+        ctx.fillRect(x,y,w,barH);
+        ctx.strokeStyle='#0a0a1a';ctx.lineWidth=2;
+        ctx.strokeRect(x,y,w,barH);
+
+        if(w>40){
+            ctx.fillStyle='#fff';ctx.font='bold 11px monospace';
+            ctx.fillText(s.gb.toFixed(1)+'GB',x+5,y+barH/2+4);
+        }
+
+        // Label below
+        ctx.fillStyle=s.color;ctx.font='11px Inter';
+        ctx.fillText(s.name,x,y+barH+20);
+
+        x+=w;
+    });
+
+    // Total label
+    ctx.fillStyle='#fff';ctx.font='bold 14px Inter';
+    ctx.fillText('Total: '+total.toFixed(1)+' GB',100,y-15);
+
+    // GPU memory lines
+    const gpus = [{name:'RTX 3090',mem:24,color:'#448aff'},{name:'A100 40GB',mem:40,color:'#26de81'},{name:'A100 80GB',mem:80,color:'#f9ca24'}];
+    gpus.forEach(g=>{
+        if(g.mem<total*1.2){
+            const gx = 100 + (g.mem/total)*maxW;
+            ctx.strokeStyle=g.color+'80';ctx.lineWidth=2;ctx.setLineDash([5,3]);
+            ctx.beginPath();ctx.moveTo(gx,y-30);ctx.lineTo(gx,y+barH+40);ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle=g.color;ctx.font='bold 10px monospace';
+            ctx.fillText(g.name+' ('+g.mem+'GB)',gx-30,y-35);
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLAYGROUND
+// ═══════════════════════════════════════════════════════════
+function runPlayground() {
+    const output = document.getElementById('playgroundOutput');
+    output.textContent = 'Loading model in 4-bit...';
+    setTimeout(()=>{
+        output.innerHTML = `<span style="color:#06b6d4">Loading Llama-2-7B with NF4 quantization...</span>
+<span style="color:#888">├── Quantizing weights: 100%|████████████| 32/32 [00:12<00:00]</span>
+<span style="color:#888">├── Double quantization: 0.37 bits/param saved</span>
+<span style="color:#888">└── Model loaded in 18.4 seconds</span>
+
+<span style="color:#26de81">✓ Model loaded successfully!</span>
+<span style="color:#888">  Base memory: 3.5 GB (NF4)</span>
+<span style="color:#888">  Model parameters: 6,738,415,616</span>
+
+<span style="color:#06b6d4">Applying LoRA adapters...</span>
+<span style="color:#888">├── Target modules: q_proj, v_proj, k_proj, o_proj</span>
+<span style="color:#888">├── Rank: 16, Alpha: 32</span>
+<span style="color:#888">└── LoRA parameters: 4,194,304</span>
+
+<span style="color:#26de81">✓ LoRA applied!</span>
+<span style="color:#f59e0b">  trainable params: 4,194,304 || all params: 3,504,484,352 || 0.12%</span>
+
+<span style="color:#888">Total GPU memory: ~5.2 GB</span>
+<span style="color:#888">  Base model (NF4):   3.50 GB</span>
+<span style="color:#888">  LoRA adapters:      0.08 GB</span>
+<span style="color:#888">  Optimizer states:   0.12 GB</span>
+<span style="color:#888">  Activations/other:  1.50 GB</span>
+
+<span style="color:#26de81">✓ Ready for fine-tuning on a single GPU!</span>`;
+    },1500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// QUIZ
+// ═══════════════════════════════════════════════════════════
+const feedbacks = [
+    ["Incorrect. NF4 also uses 4 bits.","Incorrect. NF4 may be slightly slower due to dequantization.","Correct! NF4 places 16 levels at the quantiles of N(0,1), matching the actual distribution of neural network weights.","Incorrect. NF4 still uses block-wise scaling factors."],
+    ["Incorrect. Double quantization is applied once to the model.","Correct! The FP32 block scales are themselves quantized to FP8, saving 0.37 bits/param.","Incorrect. It's about quantizing the constants, not the method.","Incorrect. Double quantization specifically refers to quantizing the quantization constants."],
+    ["Incorrect. That's FP16 (7B × 16 bits).","Incorrect. That's INT8.","Incorrect. That's INT2.","Correct! 7B × 4 bits = 3.5 GB. With overhead and LoRA, total is ~5-6 GB."],
+    ["Correct! Each block of 64 weights gets its own scale, so outliers in one block don't affect others.","Incorrect. Block-wise quantization actually adds some overhead.","Incorrect. It uses the same number of bits per weight.","Incorrect. Block-wise is about handling outliers, not parallelism."]
+];
+
+function checkAnswer(opt,idx){
+    const q=opt.closest('.quiz-question');
+    const correct=parseInt(q.dataset.correct);
+    const fb=q.querySelector('.quiz-feedback');
+    q.querySelectorAll('.quiz-option').forEach((o,i)=>{
+        o.classList.remove('correct','wrong');
+        if(i===correct)o.classList.add('correct');
+    });
+    if(idx!==correct)opt.classList.add('wrong');
+    const qi=Array.from(q.parentElement.children).indexOf(q);
+    fb.textContent=feedbacks[qi][idx];
+    fb.style.display='block';
+    fb.style.background=idx===correct?'#26de8115':'#ff6b6b15';
+    fb.style.color=idx===correct?'#26de81':'#ff6b6b';
+}
+
+// Init
+updateBits();
+updateMemory();
+</script>
+</body>
+</html>

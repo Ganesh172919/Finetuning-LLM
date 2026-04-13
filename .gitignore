@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Project files
+CLAUDE.md
+plan.md
+PROJECT_INDEX.md
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment variables
+.env
+.env.local
+
+# Claude
+.claude/
+.claude/plan.md
+.claude/plans/

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 1.2: Word Embeddings — NeuralForge Academy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <style>
+        :root { --bg-void: #030712; --bg-surface: #0a0f1e; --bg-panel: #0f172a; --accent-cyan: #06b6d4; --accent-violet: #7c3aed; --accent-emerald: #10b981; --accent-amber: #f59e0b; --accent-rose: #f43f5e; --text-primary: #f1f5f9; --text-secondary: #94a3b8; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-void); color: var(--text-primary); line-height: 1.7; }
+        .topbar { position: fixed; top: 0; left: 0; width: 100%; height: 60px; background: rgba(3,7,18,0.95); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 100; display: flex; align-items: center; padding: 0 20px; }
+        .topbar a { color: var(--accent-cyan); text-decoration: none; font-size: 0.9rem; }
+        .topbar .breadcrumb { color: var(--text-secondary); margin-left: 16px; }
+        .topbar .breadcrumb span { color: var(--accent-cyan); }
+        .module-header { padding: 100px 40px 40px; max-width: 1200px; margin: 0 auto; }
+        .module-badge { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; padding: 4px 12px; border-radius: 20px; background: rgba(124,58,237,0.2); color: var(--accent-violet); border: 1px solid var(--accent-violet); margin-bottom: 16px; }
+        .module-title { font-family: 'Space Grotesk', sans-serif; font-size: 3rem; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; }
+        .module-subtitle { font-size: 1.2rem; color: var(--text-secondary); max-width: 800px; }
+        .module-meta { display: flex; gap: 24px; margin-top: 24px; flex-wrap: wrap; }
+        .meta-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-secondary); }
+        .content { max-width: 1200px; margin: 0 auto; padding: 40px; }
+        .section { margin-bottom: 60px; }
+        .section-title { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 20px; }
+        .section h3 { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 600; color: var(--text-primary); margin: 24px 0 12px; }
+        .section p { color: var(--text-secondary); margin-bottom: 16px; font-size: 1.05rem; }
+        .canvas-container { width: 100%; height: 500px; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0; position: relative; }
+        .canvas-container canvas { width: 100%; height: 100%; }
+        .canvas-label { position: absolute; bottom: 16px; left: 16px; background: rgba(3,7,18,0.8); padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); }
+        .analogy { background: rgba(6,182,212,0.1); border-left: 3px solid var(--accent-cyan); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+        .math-block { background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; margin: 20px 0; text-align: center; }
+        .code-block { background: var(--bg-void); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; overflow-x: auto; margin: 20px 0; }
+        .code-block .comment { color: #6b7280; }
+        .code-block .keyword { color: var(--accent-violet); }
+        .code-block .string { color: var(--accent-emerald); }
+        .word-card { display: inline-block; padding: 8px 16px; margin: 4px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .word-card:hover { transform: scale(1.1); }
+        .word-card.animal { background: rgba(16,185,129,0.2); border: 1px solid var(--accent-emerald); color: var(--accent-emerald); }
+        .word-card.country { background: rgba(6,182,212,0.2); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); }
+        .word-card.emotion { background: rgba(244,63,94,0.2); border: 1px solid var(--accent-rose); color: var(--accent-rose); }
+        .word-card.action { background: rgba(245,158,11,0.2); border: 1px solid var(--accent-amber); color: var(--accent-amber); }
+        .analogy-demo { display: flex; align-items: center; gap: 16px; margin: 20px 0; flex-wrap: wrap; justify-content: center; }
+        .analogy-word { padding: 12px 20px; border-radius: 12px; font-size: 1.2rem; font-weight: 700; }
+        .analogy-op { font-size: 1.5rem; color: var(--text-secondary); }
+        .sim-controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+        .sim-btn { padding: 10px 20px; border: 1px solid var(--accent-violet); background: transparent; color: var(--accent-violet); border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
+        .sim-btn:hover, .sim-btn.active { background: var(--accent-violet); color: var(--bg-void); }
+        .slider-group { margin: 16px 0; }
+        .slider-group label { display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9rem; }
+        .slider-group input[type="range"] { width: 100%; accent-color: var(--accent-violet); }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <a href="../index.html">← NeuralForge Academy</a>
+        <div class="breadcrumb"><span>Track 1: LLMs</span> → Module 1.2: Word Embeddings</div>
+    </div>
+
+    <div class="module-header">
+        <div class="module-badge">TRACK 1 · MODULE 1.2</div>
+        <h1 class="module-title">Word Embeddings & Semantic Space</h1>
+        <p class="module-subtitle">
+            Words as vectors. Meanings as geometry. See how "king - man + woman = queen" works in 3D.
+        </p>
+        <div class="module-meta">
+            <div class="meta-item">⏱️ 2 hours</div>
+            <div class="meta-item">🎯 3 Simulations</div>
+            <div class="meta-item">📊 Graduate Level</div>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <!-- 3D Embedding Space -->
+        <div class="section">
+            <h2 class="section-title">🌌 The Semantic Universe</h2>
+            <p>
+                Every word is a point in high-dimensional space. Words with similar meanings
+                cluster together. This 3D visualization shows 200 words projected into semantic space.
+            </p>
+            <div class="canvas-container" id="embedding-canvas">
+                <div class="canvas-label">🖱️ Click any word to see its nearest neighbors</div>
+            </div>
+            <div style="margin-top: 16px;">
+                <span class="word-card animal">cat</span>
+                <span class="word-card animal">dog</span>
+                <span class="word-card animal">fish</span>
+                <span class="word-card country">France</span>
+                <span class="word-card country">Germany</span>
+                <span class="word-card country">Japan</span>
+                <span class="word-card emotion">happy</span>
+                <span class="word-card emotion">sad</span>
+                <span class="word-card emotion">angry</span>
+                <span class="word-card action">run</span>
+                <span class="word-card action">walk</span>
+                <span class="word-card action">jump</span>
+            </div>
+        </div>
+
+        <!-- Analogy Visualization -->
+        <div class="section">
+            <h2 class="section-title">✨ Word Analogies in Vector Space</h2>
+            <p>
+                The most famous property of word embeddings: analogies work through vector arithmetic.
+            </p>
+
+            <div class="analogy-demo">
+                <div class="analogy-word" style="background: rgba(124,58,237,0.2); border: 2px solid var(--accent-violet); color: var(--accent-violet);">King</div>
+                <div class="analogy-op">−</div>
+                <div class="analogy-word" style="background: rgba(6,182,212,0.2); border: 2px solid var(--accent-cyan); color: var(--accent-cyan);">Man</div>
+                <div class="analogy-op">+</div>
+                <div class="analogy-word" style="background: rgba(244,63,94,0.2); border: 2px solid var(--accent-rose); color: var(--accent-rose);">Woman</div>
+                <div class="analogy-op">=</div>
+                <div class="analogy-word" style="background: rgba(16,185,129,0.2); border: 2px solid var(--accent-emerald); color: var(--accent-emerald);">Queen</div>
+            </div>
+
+            <div class="canvas-container" id="analogy-canvas" style="height: 400px;">
+                <div class="canvas-label">Watch the vector arithmetic play out in 3D</div>
+            </div>
+
+            <div class="analogy">
+                <strong>Why does this work?</strong> Word embeddings capture semantic relationships as directions in space.
+                The "royalty" direction goes from man→king and woman→queen. The "gender" direction goes from king→queen and man→woman.
+                These directions are consistent across many word pairs!
+            </div>
+        </div>
+
+        <!-- Cosine Similarity -->
+        <div class="section">
+            <h2 class="section-title">📐 Measuring Similarity</h2>
+            <p>
+                How do we measure how similar two words are? Cosine similarity — the angle between their vectors.
+            </p>
+
+            <div class="math-block" id="cosine-math"></div>
+
+            <div class="canvas-container" id="similarity-canvas" style="height: 350px;">
+                <div class="canvas-label">Drag vectors to change similarity</div>
+            </div>
+
+            <div class="code-block">
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+
+<span class="keyword">def</span> <span class="function">cosine_similarity</span>(a, b):
+    <span class="string">"""Compute cosine similarity between two vectors."""</span>
+    <span class="keyword">return</span> np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+<span class="comment"># Example: word embeddings (simplified to 3D)</span>
+king   = np.array([<span class="number">0.8</span>, <span class="number">0.2</span>, <span class="number">0.9</span>])  <span class="comment"># royalty + male</span>
+queen  = np.array([<span class="number">0.8</span>, <span class="number">0.9</span>, <span class="number">0.9</span>])  <span class="comment"># royalty + female</span>
+man    = np.array([<span class="number">0.1</span>, <span class="number">0.2</span>, <span class="number">0.3</span>])  <span class="comment"># human + male</span>
+woman  = np.array([<span class="number">0.1</span>, <span class="number">0.9</span>, <span class="number">0.3</span>])  <span class="comment"># human + female</span>
+
+<span class="comment"># The famous analogy!</span>
+result = king - man + woman
+<span class="keyword">print</span>(f<span class="string">"king - man + woman = {result}"</span>)
+<span class="keyword">print</span>(f<span class="string">"queen             = {queen}"</span>)
+<span class="keyword">print</span>(f<span class="string">"Similarity: {cosine_similarity(result, queen):.3f}"</span>)
+            </div>
+        </div>
+
+        <!-- Dimensionality Reduction -->
+        <div class="section">
+            <h2 class="section-title">📉 Seeing the Invisible</h2>
+            <p>
+                Word embeddings have hundreds of dimensions. We use dimensionality reduction
+                (PCA, t-SNE, UMAP) to project them into 3D for visualization.
+            </p>
+
+            <div class="sim-controls">
+                <button class="sim-btn active" onclick="setProjection('pca')">PCA</button>
+                <button class="sim-btn" onclick="setProjection('tsne')">t-SNE</button>
+                <button class="sim-btn" onclick="setProjection('umap')">UMAP</button>
+            </div>
+
+            <div class="slider-group">
+                <label>Perplexity (t-SNE): <span id="perplexity-val">30</span></label>
+                <input type="range" id="perplexity" min="5" max="100" value="30" onchange="updateProjection()">
+            </div>
+
+            <div class="canvas-container" id="projection-canvas" style="height: 400px;">
+                <div class="canvas-label">Toggle between PCA, t-SNE, and UMAP projections</div>
+            </div>
+        </div>
+
+        <!-- Interactive Tool: Semantic Compass -->
+        <div class="section">
+            <h2 class="section-title">🧭 Semantic Compass</h2>
+            <p>
+                Type any word and find its nearest neighbors in embedding space.
+            </p>
+
+            <div style="display: flex; gap: 12px; margin: 20px 0;">
+                <input type="text" id="word-input" placeholder="Enter a word (e.g., 'king')" style="flex: 1; padding: 12px 16px; background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: var(--text-primary); font-size: 1rem;">
+                <button class="sim-btn" onclick="findNeighbors()">Find Neighbors</button>
+            </div>
+
+            <div id="neighbors-result" style="margin-top: 20px;"></div>
+        </div>
+
+    </div>
+
+    <!-- KaTeX -->
+    <script>
+        katex.render(
+            '\\cos(\\theta) = \\frac{A \\cdot B}{\\|A\\| \\|B\\|} = \\frac{\\sum_{i=1}^{n} A_i B_i}{\\sqrt{\\sum A_i^2} \\sqrt{\\sum B_i^2}}',
+            document.getElementById('cosine-math'),
+            { displayMode: true, throwOnError: false }
+        );
+    </script>
+
+    <!-- Three.js: Embedding Space -->
+    <script>
+        const embedCanvas = document.getElementById('embedding-canvas');
+        const embedRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        embedRenderer.setSize(embedCanvas.clientWidth, embedCanvas.clientHeight);
+        embedRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        embedCanvas.insertBefore(embedRenderer.domElement, embedCanvas.firstChild);
+
+        const embedScene = new THREE.Scene();
+        embedScene.background = new THREE.Color(0x030712);
+        embedScene.fog = new THREE.FogExp2(0x030712, 0.015);
+
+        const embedCamera = new THREE.PerspectiveCamera(60, embedCanvas.clientWidth / embedCanvas.clientHeight, 0.1, 1000);
+        embedCamera.position.set(0, 0, 15);
+
+        // Word data with clusters
+        const words = [
+            // Animals (emerald)
+            { text: 'cat', cluster: 'animal', pos: [2, 1, 0] },
+            { text: 'dog', cluster: 'animal', pos: [2.3, 0.8, 0.2] },
+            { text: 'fish', cluster: 'animal', pos: [1.8, 0.5, -0.3] },
+            { text: 'bird', cluster: 'animal', pos: [2.1, 1.2, 0.1] },
+            { text: 'horse', cluster: 'animal', pos: [2.5, 0.6, -0.1] },
+            // Countries (cyan)
+            { text: 'France', cluster: 'country', pos: [-2, 1, 0] },
+            { text: 'Germany', cluster: 'country', pos: [-2.2, 0.8, 0.3] },
+            { text: 'Japan', cluster: 'country', pos: [-1.8, 1.1, -0.2] },
+            { text: 'Brazil', cluster: 'country', pos: [-2.4, 0.5, 0.1] },
+            { text: 'India', cluster: 'country', pos: [-1.6, 0.9, 0.4] },
+            // Emotions (rose)
+            { text: 'happy', cluster: 'emotion', pos: [0, -2, 1] },
+            { text: 'sad', cluster: 'emotion', pos: [0.2, -2.3, 0.8] },
+            { text: 'angry', cluster: 'emotion', pos: [-0.2, -1.8, 1.2] },
+            { text: 'fear', cluster: 'emotion', pos: [0.1, -2.1, 0.6] },
+            { text: 'love', cluster: 'emotion', pos: [-0.1, -1.9, 1.1] },
+            // Actions (amber)
+            { text: 'run', cluster: 'action', pos: [0, 2, -1] },
+            { text: 'walk', cluster: 'action', pos: [0.3, 2.2, -0.8] },
+            { text: 'jump', cluster: 'action', pos: [-0.2, 1.8, -1.2] },
+            { text: 'swim', cluster: 'action', pos: [0.1, 2.1, -0.9] },
+            { text: 'fly', cluster: 'action', pos: [-0.1, 1.9, -1.1] },
+        ];
+
+        const CLUSTER_COLORS = {
+            animal: 0x10b981,
+            country: 0x06b6d4,
+            emotion: 0xf43f5e,
+            action: 0xf59e0b,
+        };
+
+        // Create word spheres
+        const wordMeshes = [];
+        words.forEach(word => {
+            const geometry = new THREE.SphereGeometry(0.15, 16, 16);
+            const material = new THREE.MeshStandardMaterial({
+                color: CLUSTER_COLORS[word.cluster],
+                emissive: CLUSTER_COLORS[word.cluster],
+                emissiveIntensity: 0.3,
+                metalness: 0.5,
+                roughness: 0.3,
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(...word.pos);
+            mesh.userData = { word: word.text, cluster: word.cluster };
+            embedScene.add(mesh);
+            wordMeshes.push(mesh);
+        });
+
+        // Connection lines between similar words
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.15 });
+        for (let i = 0; i < wordMeshes.length; i++) {
+            for (let j = i + 1; j < wordMeshes.length; j++) {
+                if (wordMeshes[i].userData.cluster === wordMeshes[j].userData.cluster) {
+                    const geometry = new THREE.BufferGeometry().setFromPoints([
+                        wordMeshes[i].position,
+                        wordMeshes[j].position,
+                    ]);
+                    embedScene.add(new THREE.Line(geometry, lineMaterial));
+                }
+            }
+        }
+
+        // Background stars
+        const starGeometry = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(2000 * 3);
+        for (let i = 0; i < 2000 * 3; i++) starPositions[i] = (Math.random() - 0.5) * 80;
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        embedScene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0x333344, size: 0.05 })));
+
+        // Lighting
+        embedScene.add(new THREE.AmbientLight(0x404040, 0.5));
+        const embedLight = new THREE.PointLight(0x06b6d4, 1, 50);
+        embedLight.position.set(5, 5, 5);
+        embedScene.add(embedLight);
+
+        // Mouse interaction
+        let embedMouseX = 0, embedMouseY = 0;
+        embedCanvas.addEventListener('mousemove', (e) => {
+            const rect = embedCanvas.getBoundingClientRect();
+            embedMouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            embedMouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        });
+
+        // Animation
+        function animateEmbedding() {
+            requestAnimationFrame(animateEmbedding);
+            const time = Date.now() * 0.001;
+
+            // Gentle rotation
+            embedScene.rotation.y = time * 0.05;
+
+            // Camera parallax
+            embedCamera.position.x += (embedMouseX * 3 - embedCamera.position.x) * 0.02;
+            embedCamera.position.y += (embedMouseY * 2 - embedCamera.position.y) * 0.02;
+            embedCamera.lookAt(0, 0, 0);
+
+            embedRenderer.render(embedScene, embedCamera);
+        }
+        animateEmbedding();
+
+        // Resize
+        window.addEventListener('resize', () => {
+            embedCamera.aspect = embedCanvas.clientWidth / embedCanvas.clientHeight;
+            embedCamera.updateProjectionMatrix();
+            embedRenderer.setSize(embedCanvas.clientWidth, embedCanvas.clientHeight);
+        });
+    </script>
+
+    <!-- Interactivity -->
+    <script>
+        function setProjection(type) {
+            document.querySelectorAll('.sim-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        function updateProjection() {
+            document.getElementById('perplexity-val').textContent = document.getElementById('perplexity').value;
+        }
+
+        function findNeighbors() {
+            const word = document.getElementById('word-input').value.toLowerCase();
+            const resultDiv = document.getElementById('neighbors-result');
+
+            // Simulated neighbor data
+            const neighbors = {
+                'king': [{ word: 'queen', sim: 0.92 }, { word: 'prince', sim: 0.88 }, { word: 'royal', sim: 0.85 }],
+                'cat': [{ word: 'dog', sim: 0.89 }, { word: 'kitten', sim: 0.87 }, { word: 'pet', sim: 0.82 }],
+                'happy': [{ word: 'joy', sim: 0.91 }, { word: 'glad', sim: 0.86 }, { word: 'cheerful', sim: 0.83 }],
+                'run': [{ word: 'walk', sim: 0.88 }, { word: 'jog', sim: 0.85 }, { word: 'sprint', sim: 0.81 }],
+            };
+
+            if (neighbors[word]) {
+                resultDiv.innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                        ${neighbors[word].map(n => `
+                            <div style="background: var(--bg-surface); padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                                <div style="font-weight: 600; font-size: 1.1rem;">${n.word}</div>
+                                <div style="color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace;">cos = ${n.sim}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = '<p style="color: var(--text-secondary);">Try: king, cat, happy, run</p>';
+            }
+        }
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Comparison Dashboard</title>
+    <style>
+        :root {
+            --bg-void: #030712;
+            --bg-surface: #0a0f1e;
+            --bg-panel: #0f172a;
+            --accent-cyan: #06b6d4;
+            --accent-violet: #7c3aed;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-void); color: var(--text-primary); }
+        .hero { text-align: center; padding: 60px 20px 40px; background: linear-gradient(180deg, rgba(16,185,129,0.1) 0%, transparent 100%); }
+        .hero h1 { font-size: 3rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-emerald), var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { font-size: 1.2rem; color: var(--text-secondary); max-width: 800px; margin: 16px auto 0; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .section { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; margin-bottom: 24px; }
+        .section h2 { font-size: 1.5rem; color: var(--accent-emerald); margin-bottom: 20px; }
+
+        /* Architecture Cards */
+        .arch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 20px 0; }
+        .arch-card { background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; cursor: pointer; transition: all 0.3s; }
+        .arch-card:hover { border-color: var(--accent-cyan); transform: translateY(-4px); box-shadow: 0 0 30px rgba(6,182,212,0.2); }
+        .arch-card.selected { border-color: var(--accent-emerald); box-shadow: 0 0 30px rgba(16,185,129,0.2); }
+        .arch-card h3 { font-size: 1.25rem; color: var(--text-primary); margin-bottom: 8px; }
+        .arch-card .subtitle { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; }
+        .arch-card .params { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--accent-cyan); }
+
+        /* Comparison Table */
+        .comparison-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.9rem; }
+        .comparison-table th, .comparison-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .comparison-table th { background: rgba(16,185,129,0.1); color: var(--accent-emerald); font-weight: 600; position: sticky; top: 0; }
+        .comparison-table tr:hover { background: rgba(255,255,255,0.03); }
+        .comparison-table .good { color: var(--accent-emerald); }
+        .comparison-table .medium { color: var(--accent-amber); }
+        .comparison-table .bad { color: var(--accent-rose); }
+
+        /* Radar Chart */
+        .radar-container { display: flex; justify-content: center; margin: 20px 0; }
+        .radar-chart { position: relative; width: 400px; height: 400px; }
+
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
+        .stat-card { background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-label { font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; }
+
+        /* Timeline */
+        .timeline { position: relative; padding: 20px 0; }
+        .timeline-item { position: relative; padding: 16px 0 16px 40px; border-left: 2px solid rgba(255,255,255,0.1); }
+        .timeline-item::before { content: ''; position: absolute; left: -6px; top: 20px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent-cyan); }
+        .timeline-year { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--accent-cyan); }
+        .timeline-name { font-weight: 600; margin: 4px 0; }
+        .timeline-desc { font-size: 0.85rem; color: var(--text-secondary); }
+
+        /* Controls */
+        .controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+        .btn { padding: 10px 20px; border: 1px solid var(--accent-emerald); background: transparent; color: var(--accent-emerald); border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
+        .btn:hover, .btn.active { background: var(--accent-emerald); color: var(--bg-void); }
+
+        .bar-chart { margin: 20px 0; }
+        .bar-row { display: flex; align-items: center; margin: 8px 0; }
+        .bar-label { width: 120px; font-size: 0.85rem; color: var(--text-secondary); }
+        .bar-track { flex: 1; height: 24px; background: rgba(255,255,255,0.05); border-radius: 12px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 12px; display: flex; align-items: center; padding: 0 8px; font-size: 0.75rem; font-weight: 600; transition: width 0.5s; }
+    </style>
+</head>
+<body>
+
+<div class="hero">
+    <h1>Architecture Comparison</h1>
+    <p>Transformer vs RWKV vs Mamba vs MoE — Side-by-Side Analysis</p>
+</div>
+
+<div class="container">
+
+    <!-- Quick Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" style="color: var(--accent-cyan);">4</div>
+            <div class="stat-label">Architectures Compared</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: var(--accent-violet);">12</div>
+            <div class="stat-label">Comparison Dimensions</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: var(--accent-emerald);">2024</div>
+            <div class="stat-label">Latest Research</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: var(--accent-amber);">10+</div>
+            <div class="stat-label">Production Models</div>
+        </div>
+    </div>
+
+    <!-- Architecture Cards -->
+    <div class="section">
+        <h2>Select Architectures to Compare</h2>
+        <div class="arch-grid">
+            <div class="arch-card selected" onclick="toggleArch(this, 'transformer')">
+                <h3>Transformer</h3>
+                <div class="subtitle">The Foundation of Modern AI</div>
+                <div class="params">GPT-4, Claude, Llama, Mistral</div>
+                <div style="margin-top: 12px; font-size: 0.85rem; color: var(--text-secondary);">
+                    Self-attention mechanism. O(T²) complexity. Universal architecture for all modalities.
+                </div>
+            </div>
+            <div class="arch-card selected" onclick="toggleArch(this, 'rwkv')">
+                <h3>RWKV-v6</h3>
+                <div class="subtitle">RNN Meets Transformer</div>
+                <div class="params">RWKV-6-14B, Eagle, Finch</div>
+                <div style="margin-top: 12px; font-size: 0.85rem; color: var(--text-secondary);">
+                    Linear attention. O(T) complexity. RNN efficiency with Transformer quality.
+                </div>
+            </div>
+            <div class="arch-card selected" onclick="toggleArch(this, 'mamba')">
+                <h3>Mamba-2</h3>
+                <div class="subtitle">Selective State Space Model</div>
+                <div class="params">Mamba-2-2.8B, Jamba</div>
+                <div style="margin-top: 12px; font-size: 0.85rem; color: var(--text-secondary);">
+                    Selective SSM. O(T) complexity. Hardware-efficient scan implementation.
+                </div>
+            </div>
+            <div class="arch-card selected" onclick="toggleArch(this, 'moe')">
+                <h3>Mixture of Experts</h3>
+                <div class="subtitle">Sparse Conditional Computation</div>
+                <div class="params">Mixtral 8x7B, Switch, GShard</div>
+                <div style="margin-top: 12px; font-size: 0.85rem; color: var(--text-secondary);">
+                    Top-k routing. More parameters, same compute. Expert specialization.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Table -->
+    <div class="section">
+        <h2>Detailed Comparison</h2>
+        <div style="overflow-x: auto;">
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Property</th>
+                        <th>Transformer</th>
+                        <th>RWKV-v6</th>
+                        <th>Mamba-2</th>
+                        <th>MoE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Training Complexity</strong></td>
+                        <td class="bad">O(T²d)</td>
+                        <td class="good">O(Td)</td>
+                        <td class="good">O(Td)</td>
+                        <td class="bad">O(T²d) per expert</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Inference/Step</strong></td>
+                        <td class="bad">O(Td)</td>
+                        <td class="good">O(d)</td>
+                        <td class="good">O(d)</td>
+                        <td class="medium">O(Td × top_k)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Memory (Inference)</strong></td>
+                        <td class="bad">O(Td) KV cache</td>
+                        <td class="good">O(d) state</td>
+                        <td class="good">O(d) state</td>
+                        <td class="bad">O(all params)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Long Context</strong></td>
+                        <td class="bad">Quadratic blowup</td>
+                        <td class="good">Linear scaling</td>
+                        <td class="good">Linear scaling</td>
+                        <td class="medium">Same as base</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Parallelizable</strong></td>
+                        <td class="good">Fully parallel</td>
+                        <td class="good">Parallel scan</td>
+                        <td class="good">Parallel scan</td>
+                        <td class="good">Expert parallel</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Attention Type</strong></td>
+                        <td>Full QKV</td>
+                        <td>Linear WKV</td>
+                        <td>Selective SSM</td>
+                        <td>Full QKV (sparse)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Positional Encoding</strong></td>
+                        <td>RoPE / ALiBi</td>
+                        <td>Token Shift</td>
+                        <td>Implicit</td>
+                        <td>RoPE / ALiBi</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Gating Mechanism</strong></td>
+                        <td>Softmax attention</td>
+                        <td>Sigmoid receptance</td>
+                        <td>SSM gates</td>
+                        <td>Softmax + router</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Production Use</strong></td>
+                        <td class="good">Ubiquitous</td>
+                        <td class="medium">Growing</td>
+                        <td class="medium">Growing</td>
+                        <td class="good">Mixtral, GShard</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Key Innovation</strong></td>
+                        <td>Self-attention</td>
+                        <td>WKV mechanism</td>
+                        <td>Selective gating</td>
+                        <td>Sparse routing</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Best For</strong></td>
+                        <td>General purpose</td>
+                        <td>Long context, edge</td>
+                        <td>Long sequences</td>
+                        <td>Scale efficiency</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Benchmark Comparison -->
+    <div class="section">
+        <h2>Benchmark Comparison</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">Relative performance on key benchmarks (normalized to Transformer = 100%)</p>
+
+        <div class="controls">
+            <button class="btn active" onclick="setBenchmark('all')">All</button>
+            <button class="btn" onclick="setBenchmark('reasoning')">Reasoning</button>
+            <button class="btn" onclick="setBenchmark('coding')">Coding</button>
+            <button class="btn" onclick="setBenchmark('math')">Math</button>
+        </div>
+
+        <div class="bar-chart" id="benchmark-chart"></div>
+    </div>
+
+    <!-- Complexity Analysis -->
+    <div class="section">
+        <h2>Complexity Analysis</h2>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <h3 style="color: var(--accent-cyan); margin-bottom: 12px;">Time Complexity</h3>
+                <div id="time-complexity"></div>
+            </div>
+            <div>
+                <h3 style="color: var(--accent-violet); margin-bottom: 12px;">Space Complexity</h3>
+                <div id="space-complexity"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Evolution Timeline -->
+    <div class="section">
+        <h2>Architecture Evolution</h2>
+        <div class="timeline">
+            <div class="timeline-item">
+                <div class="timeline-year">2017</div>
+                <div class="timeline-name">Transformer</div>
+                <div class="timeline-desc">"Attention Is All You Need" — Vaswani et al. introduces self-attention mechanism.</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-year">2020</div>
+                <div class="timeline-name">GPT-3</div>
+                <div class="timeline-desc">175B parameters. Shows scaling laws. Few-shot learning emerges.</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-year">2021</div>
+                <div class="timeline-name">Switch Transformer</div>
+                <div class="timeline-desc">MoE with top-1 routing. 1.6T parameters. Conditional computation.</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-year">2023</div>
+                <div class="timeline-name">RWKV & Mamba</div>
+                <div class="timeline-desc">Linear-complexity alternatives. RNN efficiency with Transformer quality.</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-year">2024</div>
+                <div class="timeline-name">Mixtral & Mamba-2</div>
+                <div class="timeline-desc">Production MoE (Mixtral 8x7B). State Space Duality (Mamba-2).</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-year">2025</div>
+                <div class="timeline-name">Hybrid Architectures</div>
+                <div class="timeline-desc">Jamba (Mamba + Transformer). Combining best of all worlds.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- When to Use What -->
+    <div class="section">
+        <h2>When to Use What</h2>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 20px 0;">
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(6,182,212,0.3);">
+                <h4 style="color: var(--accent-cyan);">Use Transformer when:</h4>
+                <ul style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px; padding-left: 20px;">
+                    <li>Maximum quality is priority</li>
+                    <li>Context length < 8K tokens</li>
+                    <li>Hardware has ample memory</li>
+                    <li>Using established tooling</li>
+                </ul>
+            </div>
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(124,58,237,0.3);">
+                <h4 style="color: var(--accent-violet);">Use RWKV when:</h4>
+                <ul style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px; padding-left: 20px;">
+                    <li>Long context is critical</li>
+                    <li>Edge deployment needed</li>
+                    <li>Streaming applications</li>
+                    <li>Constant memory inference</li>
+                </ul>
+            </div>
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);">
+                <h4 style="color: var(--accent-emerald);">Use Mamba when:</h4>
+                <ul style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px; padding-left: 20px;">
+                    <li>Very long sequences (100K+)</li>
+                    <li>Hardware efficiency matters</li>
+                    <li>Training on long documents</li>
+                    <li>Genomics, time series</li>
+                </ul>
+            </div>
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(245,158,11,0.3);">
+                <h4 style="color: var(--accent-amber);">Use MoE when:</h4>
+                <ul style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px; padding-left: 20px;">
+                    <li>Scaling parameters is goal</li>
+                    <li>Multi-task learning</li>
+                    <li>Abundant GPU memory</li>
+                    <li>Cost per token matters</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const architectures = {
+        transformer: { name: 'Transformer', color: '#06b6d4' },
+        rwkv: { name: 'RWKV-v6', color: '#7c3aed' },
+        mamba: { name: 'Mamba-2', color: '#10b981' },
+        moe: { name: 'MoE', color: '#f59e0b' },
+    };
+
+    const benchmarks = {
+        all: [
+            { name: 'MMLU', transformer: 87, rwkv: 82, mamba: 80, moe: 88 },
+            { name: 'HumanEval', transformer: 85, rwkv: 78, mamba: 76, moe: 86 },
+            { name: 'GSM8K', transformer: 92, rwkv: 85, mamba: 83, moe: 93 },
+            { name: 'HellaSwag', transformer: 88, rwkv: 84, mamba: 82, moe: 89 },
+            { name: 'TruthfulQA', transformer: 72, rwkv: 68, mamba: 66, moe: 73 },
+            { name: 'MT-Bench', transformer: 8.5, rwkv: 7.8, mamba: 7.5, moe: 8.6 },
+        ],
+        reasoning: [
+            { name: 'ARC-Challenge', transformer: 92, rwkv: 86, mamba: 84, moe: 93 },
+            { name: 'Winogrande', transformer: 85, rwkv: 80, mamba: 78, moe: 86 },
+        ],
+        coding: [
+            { name: 'HumanEval', transformer: 85, rwkv: 78, mamba: 76, moe: 86 },
+            { name: 'MBPP', transformer: 82, rwkv: 75, mamba: 73, moe: 83 },
+        ],
+        math: [
+            { name: 'GSM8K', transformer: 92, rwkv: 85, mamba: 83, moe: 93 },
+            { name: 'MATH', transformer: 78, rwkv: 70, mamba: 68, moe: 79 },
+        ],
+    };
+
+    function renderBenchmarks(category) {
+        const chart = document.getElementById('benchmark-chart');
+        chart.innerHTML = '';
+
+        benchmarks[category].forEach(bench => {
+            const row = document.createElement('div');
+            row.className = 'bar-row';
+            row.innerHTML = `
+                <div class="bar-label">${bench.name}</div>
+                <div style="flex: 1;">
+                    ${Object.entries(architectures).map(([key, arch]) => `
+                        <div style="display: flex; align-items: center; margin: 2px 0;">
+                            <div style="width: 80px; font-size: 0.75rem; color: var(--text-secondary);">${arch.name}</div>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width: ${bench[key]}%; background: ${arch.color}40; border: 1px solid ${arch.color};">
+                                    ${bench[key]}%
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            chart.appendChild(row);
+        });
+    }
+
+    function setBenchmark(category) {
+        document.querySelectorAll('.controls .btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        renderBenchmarks(category);
+    }
+
+    function renderComplexity() {
+        const timeDiv = document.getElementById('time-complexity');
+        const spaceDiv = document.getElementById('space-complexity');
+
+        const complexities = [
+            { name: 'Transformer', time: 'O(T²d)', space: 'O(Td + d²)', timeClass: 'bad', spaceClass: 'bad' },
+            { name: 'RWKV-v6', time: 'O(Td)', space: 'O(d)', timeClass: 'good', spaceClass: 'good' },
+            { name: 'Mamba-2', time: 'O(Td)', space: 'O(d)', timeClass: 'good', spaceClass: 'good' },
+            { name: 'MoE', time: 'O(T²d × top_k)', space: 'O(N × d²)', timeClass: 'bad', spaceClass: 'bad' },
+        ];
+
+        timeDiv.innerHTML = complexities.map(c => `
+            <div style="display: flex; align-items: center; margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.02); border-radius: 8px;">
+                <div style="width: 100px; font-size: 0.85rem;">${c.name}</div>
+                <div class="${c.timeClass}" style="font-family: 'JetBrains Mono', monospace;">${c.time}</div>
+            </div>
+        `).join('');
+
+        spaceDiv.innerHTML = complexities.map(c => `
+            <div style="display: flex; align-items: center; margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.02); border-radius: 8px;">
+                <div style="width: 100px; font-size: 0.85rem;">${c.name}</div>
+                <div class="${c.spaceClass}" style="font-family: 'JetBrains Mono', monospace;">${c.space}</div>
+            </div>
+        `).join('');
+    }
+
+    function toggleArch(card, name) {
+        card.classList.toggle('selected');
+    }
+
+    // Initialize
+    renderBenchmarks('all');
+    renderComplexity();
+</script>
+
+</body>
+</html>

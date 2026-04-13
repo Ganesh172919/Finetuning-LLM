@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 2.5: Vector Databases — NeuralForge Academy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        :root { --bg-void: #030712; --bg-surface: #0a0f1e; --bg-panel: #0f172a; --accent-cyan: #06b6d4; --accent-violet: #7c3aed; --accent-emerald: #10b981; --accent-amber: #f59e0b; --accent-rose: #f43f5e; --text-primary: #f1f5f9; --text-secondary: #94a3b8; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-void); color: var(--text-primary); line-height: 1.7; }
+        .topbar { position: fixed; top: 0; left: 0; width: 100%; height: 60px; background: rgba(3,7,18,0.95); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 100; display: flex; align-items: center; padding: 0 20px; }
+        .topbar a { color: var(--accent-cyan); text-decoration: none; font-size: 0.9rem; }
+        .topbar .breadcrumb { color: var(--text-secondary); margin-left: 16px; }
+        .topbar .breadcrumb span { color: var(--accent-emerald); }
+        .module-header { padding: 100px 40px 40px; max-width: 1200px; margin: 0 auto; }
+        .module-badge { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; padding: 4px 12px; border-radius: 20px; background: rgba(16,185,129,0.2); color: var(--accent-emerald); border: 1px solid var(--accent-emerald); margin-bottom: 16px; }
+        .module-title { font-family: 'Space Grotesk', sans-serif; font-size: 3rem; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; }
+        .module-subtitle { font-size: 1.2rem; color: var(--text-secondary); max-width: 800px; }
+        .module-meta { display: flex; gap: 24px; margin-top: 24px; flex-wrap: wrap; }
+        .meta-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-secondary); }
+        .content { max-width: 1200px; margin: 0 auto; padding: 40px; }
+        .section { margin-bottom: 60px; }
+        .section-title { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; color: var(--accent-emerald); margin-bottom: 20px; }
+        .section h3 { font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; font-weight: 600; color: var(--text-primary); margin: 24px 0 12px; }
+        .section p { color: var(--text-secondary); margin-bottom: 16px; font-size: 1.05rem; }
+        .canvas-container { width: 100%; height: 500px; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0; position: relative; }
+        .canvas-container canvas { width: 100%; height: 100%; }
+        .canvas-label { position: absolute; bottom: 16px; left: 16px; background: rgba(3,7,18,0.8); padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary); }
+        .analogy { background: rgba(6,182,212,0.1); border-left: 3px solid var(--accent-cyan); padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+        .info-box { padding: 20px; border-radius: 12px; margin: 20px 0; }
+        .info-box.key { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); }
+        .info-box.key h4 { color: var(--accent-emerald); }
+        .sim-controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+        .sim-btn { padding: 10px 20px; border: 1px solid var(--accent-emerald); background: transparent; color: var(--accent-emerald); border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
+        .sim-btn:hover, .sim-btn.active { background: var(--accent-emerald); color: var(--bg-void); }
+        .slider-group { margin: 16px 0; }
+        .slider-group label { display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 0.9rem; }
+        .slider-group input[type="range"] { width: 100%; accent-color: var(--accent-emerald); }
+        .code-block { background: var(--bg-void); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; overflow-x: auto; margin: 20px 0; }
+        .code-block .comment { color: #6b7280; }
+        .code-block .keyword { color: var(--accent-violet); }
+        .code-block .string { color: var(--accent-emerald); }
+        .code-block .number { color: var(--accent-amber); }
+
+        /* Comparison table */
+        .comparison-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .comparison-table th, .comparison-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .comparison-table th { background: rgba(16,185,129,0.1); color: var(--accent-emerald); }
+        .comparison-table .good { color: var(--accent-emerald); }
+        .comparison-table .medium { color: var(--accent-amber); }
+        .comparison-table .bad { color: var(--accent-rose); }
+
+        /* Layer visualization */
+        .hnsw-layers { display: flex; flex-direction: column; gap: 20px; margin: 20px 0; }
+        .hnsw-layer { background: var(--bg-surface); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.1); }
+        .hnsw-layer .layer-label { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent-emerald); margin-bottom: 8px; }
+        .hnsw-layer .layer-nodes { display: flex; gap: 8px; flex-wrap: wrap; }
+        .hnsw-node { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .hnsw-node:hover { transform: scale(1.2); }
+        .hnsw-node.visited { box-shadow: 0 0 10px var(--accent-cyan); }
+        .hnsw-node.result { box-shadow: 0 0 15px var(--accent-amber); }
+
+        /* Search animation */
+        .search-flow { display: flex; gap: 8px; align-items: center; margin: 20px 0; flex-wrap: wrap; }
+        .search-step { padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <a href="../index.html">← NeuralForge Academy</a>
+        <div class="breadcrumb"><span>Track 2: RAG</span> → Module 2.5: Vector Databases</div>
+    </div>
+
+    <div class="module-header">
+        <div class="module-badge">TRACK 2 · MODULE 2.5</div>
+        <h1 class="module-title">Vector Databases & HNSW</h1>
+        <p class="module-subtitle">
+            How vector databases store and search embeddings at scale. See HNSW graphs
+            come alive in 3D and watch the search algorithm in action.
+        </p>
+        <div class="module-meta">
+            <div class="meta-item">⏱️ 2 hours</div>
+            <div class="meta-item">🎯 4 Simulations</div>
+            <div class="meta-item">📊 Expert Level</div>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <!-- HNSW Visualization -->
+        <div class="section">
+            <h2 class="section-title">🕸️ HNSW Graph in 3D</h2>
+            <p>
+                HNSW (Hierarchical Navigable Small World) is the algorithm behind most vector databases.
+                It organizes vectors into a multi-layer graph where each layer has different connectivity.
+            </p>
+
+            <div class="canvas-container" id="hnsw-canvas">
+                <div class="canvas-label">🖱️ Click "Search" to watch the algorithm find nearest neighbors</div>
+            </div>
+
+            <div class="sim-controls">
+                <button class="sim-btn active" onclick="startSearch()">🔍 Search</button>
+                <button class="sim-btn" onclick="addVector()">➕ Add Vector</button>
+                <button class="sim-btn" onclick="resetGraph()">↺ Reset</button>
+            </div>
+
+            <div class="slider-group">
+                <label>Number of Vectors: <span id="num-vectors-val">50</span></label>
+                <input type="range" id="num-vectors" min="20" max="200" value="50" step="10" onchange="updateGraph()">
+            </div>
+
+            <div class="slider-group">
+                <label>Search K: <span id="k-val">3</span></label>
+                <input type="range" id="search-k" min="1" max="10" value="3" onchange="updateK()">
+            </div>
+        </div>
+
+        <!-- How HNSW Works -->
+        <div class="section">
+            <h2 class="section-title">🏗️ How HNSW Works</h2>
+
+            <h3>Layer Structure</h3>
+            <div class="hnsw-layers">
+                <div class="hnsw-layer">
+                    <div class="layer-label">Layer 3 (Top) — Entry Point</div>
+                    <div class="layer-nodes">
+                        <div class="hnsw-node" style="background: rgba(6,182,212,0.3); border: 2px solid var(--accent-cyan); color: var(--accent-cyan);">E</div>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 8px;">Single entry point. Long-range connections. Start here.</p>
+                </div>
+                <div class="hnsw-layer">
+                    <div class="layer-label">Layer 2 — Sparse</div>
+                    <div class="layer-nodes">
+                        <div class="hnsw-node" style="background: rgba(124,58,237,0.3); border: 1px solid var(--accent-violet); color: var(--accent-violet);">A</div>
+                        <div class="hnsw-node" style="background: rgba(124,58,237,0.3); border: 1px solid var(--accent-violet); color: var(--accent-violet);">B</div>
+                        <div class="hnsw-node" style="background: rgba(124,58,237,0.3); border: 1px solid var(--accent-violet); color: var(--accent-violet);">C</div>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 8px;">Fewer nodes, longer edges. Navigate toward target region.</p>
+                </div>
+                <div class="hnsw-layer">
+                    <div class="layer-label">Layer 1 — Medium</div>
+                    <div class="layer-nodes">
+                        <div class="hnsw-node" style="background: rgba(16,185,129,0.3); border: 1px solid var(--accent-emerald); color: var(--accent-emerald);">1</div>
+                        <div class="hnsw-node" style="background: rgba(16,185,129,0.3); border: 1px solid var(--accent-emerald); color: var(--accent-emerald);">2</div>
+                        <div class="hnsw-node" style="background: rgba(16,185,129,0.3); border: 1px solid var(--accent-emerald); color: var(--accent-emerald);">3</div>
+                        <div class="hnsw-node" style="background: rgba(16,185,129,0.3); border: 1px solid var(--accent-emerald); color: var(--accent-emerald);">4</div>
+                        <div class="hnsw-node" style="background: rgba(16,185,129,0.3); border: 1px solid var(--accent-emerald); color: var(--accent-emerald);">5</div>
+                        <div class="hnsw-node" style="background: rgba(16,185,129,0.3); border: 1px solid var(--accent-emerald); color: var(--accent-emerald);">6</div>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 8px;">More nodes, medium edges. Getting closer.</p>
+                </div>
+                <div class="hnsw-layer">
+                    <div class="layer-label">Layer 0 (Bottom) — All Vectors</div>
+                    <div class="layer-nodes" id="layer0-nodes"></div>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 8px;">All vectors densely connected. Final k-NN search here.</p>
+                </div>
+            </div>
+
+            <div class="info-box key">
+                <h4>🔑 Key Insight: Greedy Search with Hierarchical Navigation</h4>
+                <p style="font-size: 0.9rem;">
+                    Start at the top layer (entry point). Greedily move to the nearest neighbor.
+                    When you can't get closer, drop down one layer and continue.
+                    At Layer 0, find the actual k nearest neighbors.
+                    This is O(log N) instead of O(N) brute force!
+                </p>
+            </div>
+        </div>
+
+        <!-- Search Algorithm -->
+        <div class="section">
+            <h2 class="section-title">🔍 Search Algorithm</h2>
+
+            <div class="search-flow" id="search-flow">
+                <div class="search-step" style="background: rgba(6,182,212,0.2); border: 1px solid var(--accent-cyan); color: var(--accent-cyan);">1. Start at entry point (Layer 3)</div>
+                <div style="color: var(--text-secondary);">→</div>
+                <div class="search-step" style="background: rgba(124,58,237,0.2); border: 1px solid var(--accent-violet); color: var(--accent-violet);">2. Greedy search: move to nearest</div>
+                <div style="color: var(--text-secondary);">→</div>
+                <div class="search-step" style="background: rgba(16,185,129,0.2); border: 1px solid var(--accent-emerald); color: var(--accent-emerald);">3. Can't improve? Drop layer</div>
+                <div style="color: var(--text-secondary);">→</div>
+                <div class="search-step" style="background: rgba(245,158,11,0.2); border: 1px solid var(--accent-amber); color: var(--accent-amber);">4. Repeat until Layer 0</div>
+                <div style="color: var(--text-secondary);">→</div>
+                <div class="search-step" style="background: rgba(244,63,94,0.2); border: 1px solid var(--accent-rose); color: var(--accent-rose);">5. Return k nearest neighbors</div>
+            </div>
+        </div>
+
+        <!-- ANN Index Comparison -->
+        <div class="section">
+            <h2 class="section-title">📊 ANN Index Comparison</h2>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Index Type</th>
+                        <th>Build Time</th>
+                        <th>Query Time</th>
+                        <th>Memory</th>
+                        <th>Recall</th>
+                        <th>Best For</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Flat (Brute Force)</strong></td>
+                        <td class="good">O(1)</td>
+                        <td class="bad">O(N)</td>
+                        <td class="good">Low</td>
+                        <td class="good">100%</td>
+                        <td>Small datasets (<10K)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>IVF (Inverted File)</strong></td>
+                        <td class="good">O(N√N)</td>
+                        <td class="good">O(√N)</td>
+                        <td class="good">Low</td>
+                        <td class="medium">95-99%</td>
+                        <td>Medium datasets</td>
+                    </tr>
+                    <tr>
+                        <td><strong>HNSW</strong></td>
+                        <td class="medium">O(N log N)</td>
+                        <td class="good">O(log N)</td>
+                        <td class="bad">High</td>
+                        <td class="good">99%+</td>
+                        <td>Production (default)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>PQ (Product Quant.)</strong></td>
+                        <td class="medium">O(N)</td>
+                        <td class="good">O(√N)</td>
+                        <td class="good">Very Low</td>
+                        <td class="medium">90-95%</td>
+                        <td>Memory-constrained</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Vector Database Comparison -->
+        <div class="section">
+            <h2 class="section-title">🗄️ Vector Database Comparison</h2>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Database</th>
+                        <th>Max Scale</th>
+                        <th>Filtering</th>
+                        <th>Hybrid Search</th>
+                        <th>Managed</th>
+                        <th>Best For</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Chroma</strong></td>
+                        <td>~1M</td>
+                        <td>Basic</td>
+                        <td class="bad">Limited</td>
+                        <td class="bad">No</td>
+                        <td>Prototyping</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Pinecone</strong></td>
+                        <td>Billions</td>
+                        <td>Rich</td>
+                        <td class="good">Yes</td>
+                        <td class="good">Yes</td>
+                        <td>Production (managed)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Weaviate</strong></td>
+                        <td>Hundreds M</td>
+                        <td>Rich</td>
+                        <td class="good">Yes</td>
+                        <td>Both</td>
+                        <td>Hybrid search</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Qdrant</strong></td>
+                        <td>Hundreds M</td>
+                        <td>Rich</td>
+                        <td class="good">Yes</td>
+                        <td>Both</td>
+                        <td>Performance</td>
+                    </tr>
+                    <tr>
+                        <td><strong>FAISS</strong></td>
+                        <td>Billions</td>
+                        <td class="bad">None</td>
+                        <td class="bad">No</td>
+                        <td class="bad">No</td>
+                        <td>Research / Custom</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Code -->
+        <div class="section">
+            <h2 class="section-title">💻 Implementation</h2>
+            <div class="code-block">
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+<span class="keyword">import</span> faiss
+
+<span class="keyword">class</span> <span class="string">VectorDatabase</span>:
+    <span class="string">"""Simple vector database using FAISS."""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, dim, index_type=<span class="string">"hnsw"</span>):
+        self.dim = dim
+        <span class="keyword">if</span> index_type == <span class="string">"flat"</span>:
+            self.index = faiss.IndexFlatIP(dim)
+        <span class="keyword">elif</span> index_type == <span class="string">"hnsw"</span>:
+            self.index = faiss.IndexHNSWFlat(dim, <span class="number">32</span>)
+        <span class="keyword">elif</span> index_type == <span class="string">"ivf"</span>:
+            quantizer = faiss.IndexFlatIP(dim)
+            self.index = faiss.IndexIVFFlat(quantizer, dim, <span class="number">100</span>)
+
+    <span class="keyword">def</span> <span class="function">add</span>(self, embeddings):
+        <span class="string">"""Add vectors to the index."""</span>
+        self.index.add(embeddings.astype(np.float32))
+
+    <span class="keyword">def</span> <span class="function">search</span>(self, query, k=<span class="number">5</span>):
+        <span class="string">"""Find k nearest neighbors."""</span>
+        distances, indices = self.index.search(
+            query.astype(np.float32), k
+        )
+        <span class="keyword">return</span> distances, indices
+
+    <span class="keyword">def</span> <span class="function">__len__</span>(self):
+        <span class="keyword">return</span> self.index.ntotal
+
+<span class="comment"># Usage</span>
+db = VectorDatabase(dim=<span class="number">384</span>, index_type=<span class="string">"hnsw"</span>)
+embeddings = np.random.randn(<span class="number">10000</span>, <span class="number">384</span>)
+db.add(embeddings)
+
+query = np.random.randn(<span class="number">1</span>, <span class="number">384</span>)
+distances, indices = db.search(query, k=<span class="number">5</span>)
+print(f<span class="string">"Found {len(indices[0])} nearest neighbors"</span>)
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Three.js: HNSW 3D Visualization -->
+    <script>
+        const hnswCanvas = document.getElementById('hnsw-canvas');
+        const hnswRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        hnswRenderer.setSize(hnswCanvas.clientWidth, hnswCanvas.clientHeight);
+        hnswRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        hnswCanvas.insertBefore(hnswRenderer.domElement, hnswCanvas.firstChild);
+
+        const hnswScene = new THREE.Scene();
+        hnswScene.background = new THREE.Color(0x030712);
+        hnswScene.fog = new THREE.FogExp2(0x030712, 0.01);
+
+        const hnswCamera = new THREE.PerspectiveCamera(60, hnswCanvas.clientWidth / hnswCanvas.clientHeight, 0.1, 1000);
+        hnswCamera.position.set(0, 10, 20);
+
+        // Layer colors
+        const LAYER_COLORS = [0x10b981, 0x7c3aed, 0x06b6d4, 0xf59e0b];
+        const LAYER_Y = [0, 3, 6, 9];
+
+        // Create nodes per layer
+        const nodes = [];
+        const edges = [];
+        let numVectors = 50;
+
+        function createGraph() {
+            // Clear existing
+            nodes.forEach(n => hnswScene.remove(n.mesh));
+            edges.forEach(e => hnswScene.remove(e));
+            nodes.length = 0;
+            edges.length = 0;
+
+            const nodesPerLayer = [
+                numVectors,
+                Math.floor(numVectors / 3),
+                Math.floor(numVectors / 10),
+                1
+            ];
+
+            nodesPerLayer.forEach((count, layer) => {
+                for (let i = 0; i < count; i++) {
+                    const geometry = new THREE.SphereGeometry(0.2 + layer * 0.1, 16, 16);
+                    const material = new THREE.MeshStandardMaterial({
+                        color: LAYER_COLORS[layer],
+                        emissive: LAYER_COLORS[layer],
+                        emissiveIntensity: 0.3,
+                        metalness: 0.5,
+                        roughness: 0.3,
+                    });
+                    const mesh = new THREE.Mesh(geometry, material);
+
+                    // Position
+                    const angle = (i / count) * Math.PI * 2;
+                    const radius = 5 - layer * 1;
+                    mesh.position.set(
+                        Math.cos(angle) * radius + (Math.random() - 0.5) * 2,
+                        LAYER_Y[layer],
+                        Math.sin(angle) * radius + (Math.random() - 0.5) * 2
+                    );
+
+                    mesh.userData = { layer, index: i, visited: false };
+                    hnswScene.add(mesh);
+                    nodes.push({ mesh, layer, index: i });
+                }
+            });
+
+            // Create edges (connect nearby nodes within layer)
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    if (nodes[i].layer === nodes[j].layer) {
+                        const dist = nodes[i].mesh.position.distanceTo(nodes[j].mesh.position);
+                        if (dist < 4) {
+                            const geometry = new THREE.BufferGeometry().setFromPoints([
+                                nodes[i].mesh.position,
+                                nodes[j].mesh.position,
+                            ]);
+                            const material = new THREE.LineBasicMaterial({
+                                color: LAYER_COLORS[nodes[i].layer],
+                                transparent: true,
+                                opacity: 0.15,
+                            });
+                            const line = new THREE.Line(geometry, material);
+                            hnswScene.add(line);
+                            edges.push(line);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Query sphere
+        const queryGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const queryMaterial = new THREE.MeshStandardMaterial({
+            color: 0xf43f5e,
+            emissive: 0xf43f5e,
+            emissiveIntensity: 0.5,
+        });
+        const querySphere = new THREE.Mesh(queryGeometry, queryMaterial);
+        querySphere.position.set(3, 0, 3);
+        hnswScene.add(querySphere);
+
+        // Lighting
+        hnswScene.add(new THREE.AmbientLight(0x404040, 0.5));
+        const hnswLight = new THREE.PointLight(0x10b981, 1, 50);
+        hnswLight.position.set(5, 15, 5);
+        hnswScene.add(hnswLight);
+
+        // Search animation
+        let searchStep = 0;
+        let searchInterval = null;
+
+        function startSearch() {
+            if (searchInterval) clearInterval(searchInterval);
+            searchStep = 0;
+
+            // Reset visited
+            nodes.forEach(n => {
+                n.mesh.material.emissiveIntensity = 0.3;
+            });
+
+            searchInterval = setInterval(() => {
+                if (searchStep >= nodes.length) {
+                    clearInterval(searchInterval);
+                    return;
+                }
+
+                // Visit nodes in order (simulating HNSW search)
+                const node = nodes[searchStep];
+                node.mesh.material.emissiveIntensity = 1.0;
+
+                // Highlight nearby nodes
+                nodes.forEach(n => {
+                    if (n.layer === node.layer) {
+                        const dist = n.mesh.position.distanceTo(node.mesh.position);
+                        if (dist < 3) {
+                            n.mesh.material.emissiveIntensity = 0.7;
+                        }
+                    }
+                });
+
+                searchStep++;
+            }, 100);
+        }
+
+        function addVector() {
+            const layer = 0;
+            const geometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const material = new THREE.MeshStandardMaterial({
+                color: LAYER_COLORS[layer],
+                emissive: LAYER_COLORS[layer],
+                emissiveIntensity: 0.3,
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(
+                (Math.random() - 0.5) * 10,
+                LAYER_Y[layer],
+                (Math.random() - 0.5) * 10
+            );
+            hnswScene.add(mesh);
+            nodes.push({ mesh, layer, index: nodes.length });
+        }
+
+        function resetGraph() {
+            if (searchInterval) clearInterval(searchInterval);
+            createGraph();
+        }
+
+        function updateGraph() {
+            numVectors = parseInt(document.getElementById('num-vectors').value);
+            document.getElementById('num-vectors-val').textContent = numVectors;
+            createGraph();
+        }
+
+        function updateK() {
+            document.getElementById('k-val').textContent = document.getElementById('search-k').value;
+        }
+
+        // Mouse interaction
+        let hMouseX = 0, hMouseY = 0;
+        hnswCanvas.addEventListener('mousemove', (e) => {
+            const rect = hnswCanvas.getBoundingClientRect();
+            hMouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            hMouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        });
+
+        // Animation
+        function animateHNSW() {
+            requestAnimationFrame(animateHNSW);
+            const time = Date.now() * 0.001;
+
+            // Rotate query sphere
+            querySphere.position.x = 3 + Math.sin(time) * 2;
+            querySphere.position.z = 3 + Math.cos(time) * 2;
+
+            // Camera parallax
+            hnswCamera.position.x += (hMouseX * 5 - hnswCamera.position.x) * 0.02;
+            hnswCamera.position.y += (hMouseY * 3 + 10 - hnswCamera.position.y) * 0.02;
+            hnswCamera.lookAt(0, 4, 0);
+
+            hnswRenderer.render(hnswScene, hnswCamera);
+        }
+
+        // Initialize
+        createGraph();
+        animateHNSW();
+
+        // Resize
+        window.addEventListener('resize', () => {
+            hnswCamera.aspect = hnswCanvas.clientWidth / hnswCanvas.clientHeight;
+            hnswCamera.updateProjectionMatrix();
+            hnswRenderer.setSize(hnswCanvas.clientWidth, hnswCanvas.clientHeight);
+        });
+
+        // Layer 0 nodes
+        const layer0Div = document.getElementById('layer0-nodes');
+        for (let i = 0; i < 20; i++) {
+            const node = document.createElement('div');
+            node.className = 'hnsw-node';
+            node.style.background = 'rgba(16,185,129,0.3)';
+            node.style.border = '1px solid var(--accent-emerald)';
+            node.style.color = 'var(--accent-emerald)';
+            node.textContent = i;
+            layer0Div.appendChild(node);
+        }
+    </script>
+
+</body>
+</html>

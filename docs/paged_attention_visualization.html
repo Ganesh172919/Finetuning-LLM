@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paged Attention — Interactive Visualization</title>
+    <style>
+        :root {
+            --bg-void: #030712;
+            --bg-surface: #0a0f1e;
+            --bg-panel: #0f172a;
+            --accent-cyan: #06b6d4;
+            --accent-violet: #7c3aed;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-void);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 60px 20px 40px;
+            background: linear-gradient(180deg, rgba(6,182,212,0.1) 0%, transparent 100%);
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 16px;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .section {
+            background: var(--bg-panel);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+
+        .section h2 {
+            font-size: 1.5rem;
+            color: var(--accent-cyan);
+            margin-bottom: 20px;
+        }
+
+        /* Memory Blocks Visualization */
+        .memory-grid {
+            display: grid;
+            grid-template-columns: repeat(16, 1fr);
+            gap: 4px;
+            margin: 20px 0;
+        }
+
+        .memory-block {
+            aspect-ratio: 1;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .memory-block:hover {
+            transform: scale(1.2);
+            z-index: 10;
+            box-shadow: 0 0 20px currentColor;
+        }
+
+        .memory-block.free {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-secondary);
+        }
+
+        .memory-block.allocated {
+            border: 2px solid;
+        }
+
+        .memory-block.req-a {
+            background: rgba(6,182,212,0.3);
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        .memory-block.req-b {
+            background: rgba(124,58,237,0.3);
+            border-color: var(--accent-violet);
+            color: var(--accent-violet);
+        }
+
+        .memory-block.req-c {
+            background: rgba(16,185,129,0.3);
+            border-color: var(--accent-emerald);
+            color: var(--accent-emerald);
+        }
+
+        .memory-block.req-d {
+            background: rgba(245,158,11,0.3);
+            border-color: var(--accent-amber);
+            color: var(--accent-amber);
+        }
+
+        .memory-block.wasted {
+            background: rgba(244,63,94,0.2);
+            border: 2px dashed var(--accent-rose);
+            color: var(--accent-rose);
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .comparison-table th {
+            background: rgba(6,182,212,0.1);
+            color: var(--accent-cyan);
+            font-weight: 600;
+        }
+
+        .comparison-table tr:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: var(--bg-surface);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: 1px solid var(--accent-cyan);
+            background: transparent;
+            color: var(--accent-cyan);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: var(--accent-cyan);
+            color: var(--bg-void);
+        }
+
+        .btn.active {
+            background: var(--accent-cyan);
+            color: var(--bg-void);
+        }
+
+        /* Slider */
+        .slider-group {
+            margin: 20px 0;
+        }
+
+        .slider-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .slider-group input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-cyan);
+        }
+
+        /* Visualization Area */
+        .viz-area {
+            background: var(--bg-surface);
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 300px;
+            position: relative;
+        }
+
+        .sequence-block {
+            display: flex;
+            gap: 2px;
+            align-items: center;
+            margin: 8px 0;
+            padding: 8px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 8px;
+        }
+
+        .token {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .seq-label {
+            width: 80px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Efficiency Bar */
+        .efficiency-bar {
+            height: 40px;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            margin: 12px 0;
+        }
+
+        .efficiency-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: width 0.5s;
+        }
+
+        .legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin: 16px 0;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+
+        /* Code Block */
+        .code-block {
+            background: var(--bg-void);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        .code-block .comment { color: #6b7280; }
+        .code-block .keyword { color: var(--accent-violet); }
+        .code-block .string { color: var(--accent-emerald); }
+        .code-block .number { color: var(--accent-amber); }
+    </style>
+</head>
+<body>
+
+<div class="hero">
+    <h1>Paged Attention</h1>
+    <p>Virtual Memory for KV Cache — Eliminating Memory Waste in LLM Serving</p>
+</div>
+
+<div class="container">
+
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="memory-util">96%</div>
+            <div class="stat-label">Memory Utilization</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="throughput">2.4x</div>
+            <div class="stat-label">Throughput Gain</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="waste">&lt;4%</div>
+            <div class="stat-label">Memory Waste</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="concurrent">3.5x</div>
+            <div class="stat-label">More Concurrent Requests</div>
+        </div>
+    </div>
+
+    <!-- Problem: Traditional KV Cache -->
+    <div class="section">
+        <h2>The Problem: Traditional KV Cache</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            In standard attention, each request pre-allocates a contiguous block of memory
+            for its maximum possible KV cache. This leads to massive waste.
+        </p>
+
+        <div class="viz-area">
+            <div class="sequence-block">
+                <div class="seq-label">Request A</div>
+                <div id="trad-a"></div>
+            </div>
+            <div class="sequence-block">
+                <div class="seq-label">Request B</div>
+                <div id="trad-b"></div>
+            </div>
+            <div class="sequence-block">
+                <div class="seq-label">Request C</div>
+                <div id="trad-c"></div>
+            </div>
+
+            <div class="efficiency-bar">
+                <div class="efficiency-segment" style="width: 30%; background: rgba(6,182,212,0.4);">Used</div>
+                <div class="efficiency-segment" style="width: 70%; background: rgba(244,63,94,0.3);">Wasted</div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(6,182,212,0.4);"></div>
+                    <span>Used memory (30%)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(244,63,94,0.3);"></div>
+                    <span>Wasted memory (70%)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Solution: Paged Attention -->
+    <div class="section">
+        <h2>The Solution: Paged Attention</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Inspired by virtual memory in operating systems, Paged Attention divides KV cache
+            into fixed-size blocks. Sequences can use non-contiguous physical blocks,
+            eliminating internal and external fragmentation.
+        </p>
+
+        <div class="controls">
+            <button class="btn active" onclick="setMode('paged')">Paged Attention</button>
+            <button class="btn" onclick="setMode('contiguous')">Contiguous (Traditional)</button>
+        </div>
+
+        <div class="slider-group">
+            <label>Number of Requests: <span id="num-req-val">4</span></label>
+            <input type="range" id="num-req" min="1" max="8" value="4" onchange="updateVisualization()">
+        </div>
+
+        <div class="slider-group">
+            <label>Sequence Length: <span id="seq-len-val">128</span> tokens</label>
+            <input type="range" id="seq-len" min="32" max="512" value="128" step="32" onchange="updateVisualization()">
+        </div>
+
+        <div class="viz-area">
+            <h3 style="color: var(--accent-cyan); margin-bottom: 12px;">Physical Memory Blocks</h3>
+            <div id="paged-memory" class="memory-grid"></div>
+
+            <h3 style="color: var(--accent-violet); margin: 20px 0 12px;">Logical Sequences</h3>
+            <div id="logical-sequences"></div>
+
+            <div class="efficiency-bar" id="paged-efficiency"></div>
+        </div>
+    </div>
+
+    <!-- How It Works -->
+    <div class="section">
+        <h2>How Paged Attention Works</h2>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">
+            <div>
+                <h3 style="color: var(--accent-cyan); margin-bottom: 12px;">Block Table</h3>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                    Maps logical blocks to physical blocks. Each sequence has its own
+                    block table that tracks which physical memory blocks contain its KV cache.
+                </p>
+                <div class="code-block">
+<span class="comment"># Block table mapping</span>
+block_table = {
+    <span class="string">"seq_A"</span>: [<span class="number">0</span>, <span class="number">3</span>, <span class="number">7</span>],   <span class="comment"># Non-contiguous!</span>
+    <span class="string">"seq_B"</span>: [<span class="number">1</span>, <span class="number">4</span>],       <span class="comment"># Shorter sequence</span>
+    <span class="string">"seq_C"</span>: [<span class="number">2</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">8</span>], <span class="comment"># Longer sequence</span>
+}
+                </div>
+            </div>
+
+            <div>
+                <h3 style="color: var(--accent-emerald); margin-bottom: 12px;">Copy-on-Write</h3>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                    When beam search needs to fork a sequence, Paged Attention uses
+                    copy-on-write: both beams share the same physical blocks until
+                    one needs to modify them. This saves significant memory.
+                </p>
+                <div class="code-block">
+<span class="comment"># Beam search fork</span>
+beam_1 = sequence.blocks  <span class="comment"># Shared reference</span>
+beam_2 = sequence.blocks  <span class="comment"># Same blocks!</span>
+
+<span class="comment"># Only copy when writing</span>
+<span class="keyword">if</span> beam_2.needs_write:
+    new_block = allocate_block()
+    copy(block, new_block)  <span class="comment"># Now separate</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison -->
+    <div class="section">
+        <h2>Memory Management Comparison</h2>
+
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Approach</th>
+                    <th>Memory Layout</th>
+                    <th>Internal Frag.</th>
+                    <th>External Frag.</th>
+                    <th>Utilization</th>
+                    <th>Beam Search</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Contiguous</strong></td>
+                    <td>One big block per sequence</td>
+                    <td style="color: var(--accent-rose);">High (pre-allocated)</td>
+                    <td style="color: var(--accent-rose);">High (gaps)</td>
+                    <td style="color: var(--accent-rose);">20-40%</td>
+                    <td style="color: var(--accent-rose);">Full copy</td>
+                </tr>
+                <tr>
+                    <td><strong>Paged Attention</strong></td>
+                    <td>Fixed-size blocks, non-contiguous</td>
+                    <td style="color: var(--accent-emerald);">Low (< 4%)</td>
+                    <td style="color: var(--accent-emerald);">None</td>
+                    <td style="color: var(--accent-emerald);">96%+</td>
+                    <td style="color: var(--accent-emerald);">Copy-on-Write</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Impact -->
+    <div class="section">
+        <h2>Impact on LLM Serving</h2>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 20px 0;">
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(6,182,212,0.3);">
+                <h4 style="color: var(--accent-cyan);">vLLM (Production)</h4>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                    First production implementation. 2-4x throughput improvement.
+                    Powers ChatGPT, Claude, and many production LLM services.
+                </p>
+            </div>
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(124,58,237,0.3);">
+                <h4 style="color: var(--accent-violet);">TensorRT-LLM</h4>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                    NVIDIA's implementation with GPU-optimized kernels.
+                    Used in enterprise deployments.
+                </p>
+            </div>
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);">
+                <h4 style="color: var(--accent-emerald);">TGI (HuggingFace)</h4>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                    HuggingFace's Text Generation Inference.
+                    Integrated with Inference API.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Technical Details -->
+    <div class="section">
+        <h2>Technical Deep Dive</h2>
+
+        <div class="code-block">
+<span class="comment"># PagedAttention: Virtual Memory for KV Cache</span>
+<span class="comment"># Reference: vLLM (Kwon et al., 2023)</span>
+
+<span class="keyword">class</span> <span class="string">PagedKVCache</span>:
+    <span class="keyword">def</span> __init__(self, num_blocks, block_size):
+        <span class="comment"># Physical memory: fixed-size blocks</span>
+        self.blocks = allocate_gpu_memory(num_blocks, block_size)
+        self.free_blocks = set(range(num_blocks))
+
+    <span class="keyword">def</span> allocate(self, seq_id):
+        <span class="comment"># Allocate one block from free pool</span>
+        block_id = self.free_blocks.pop()
+        self.block_table[seq_id].append(block_id)
+        <span class="keyword">return</span> block_id
+
+    <span class="keyword">def</span> append_token(self, seq_id, k, v):
+        <span class="comment"># Get last block, allocate new if full</span>
+        last_block = self.block_table[seq_id][-<span class="number">1</span>]
+        <span class="keyword">if</span> last_block.is_full():
+            last_block = self.allocate(seq_id)
+
+        <span class="comment"># Write KV to block (non-contiguous is fine!)</span>
+        last_block.append(k, v)
+
+    <span class="keyword">def</span> copy_on_write(self, src_seq, dst_seq):
+        <span class="comment"># Share blocks between sequences (beam search)</span>
+        self.block_table[dst_seq] = self.block_table[src_seq][:]
+        <span class="comment"># Mark as shared — copy only when writing</span>
+        <span class="keyword">for</span> block_id <span class="keyword">in</span> self.block_table[dst_seq]:
+            self.ref_count[block_id] += <span class="number">1</span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // ── Configuration ─────────────────────────────────────────
+    const BLOCK_SIZE = 16;  // tokens per block
+    const NUM_BLOCKS = 64;  // total physical blocks
+    const COLORS = ['#06b6d4', '#7c3aed', '#10b981', '#f59e0b',
+                    '#f43f5e', '#8b5cf6', '#14b8a6', '#f97316'];
+
+    let mode = 'paged';
+
+    function setMode(m) {
+        mode = m;
+        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        updateVisualization();
+    }
+
+    // ── Render Traditional Memory ─────────────────────────────
+    function renderTraditional() {
+        const maxLen = 128;
+        const requests = [
+            { id: 'A', actual: 45, color: COLORS[0] },
+            { id: 'B', actual: 20, color: COLORS[1] },
+            { id: 'C', actual: 80, color: COLORS[2] },
+        ];
+
+        requests.forEach(req => {
+            const container = document.getElementById(`trad-${req.id.toLowerCase()}`);
+            container.innerHTML = '';
+            for (let i = 0; i < maxLen; i++) {
+                const div = document.createElement('div');
+                div.className = `token ${i < req.actual ? '' : ''}`;
+                div.style.background = i < req.actual
+                    ? req.color + '40'
+                    : 'rgba(244,63,94,0.15)';
+                div.style.border = i < req.actual
+                    ? `1px solid ${req.color}`
+                    : '1px dashed rgba(244,63,94,0.3)';
+                div.textContent = i < req.actual ? 'K' : '';
+                div.style.width = '20px';
+                div.style.height = '20px';
+                div.style.fontSize = '0.5rem';
+                container.appendChild(div);
+            }
+        });
+    }
+
+    // ── Render Paged Memory ───────────────────────────────────
+    function updateVisualization() {
+        const numReq = parseInt(document.getElementById('num-req').value);
+        const seqLen = parseInt(document.getElementById('seq-len').value);
+        document.getElementById('num-req-val').textContent = numReq;
+        document.getElementById('seq-len-val').textContent = seqLen;
+
+        const blocksPerSeq = Math.ceil(seqLen / BLOCK_SIZE);
+        const totalBlocksNeeded = numReq * blocksPerSeq;
+
+        // Render physical memory grid
+        const grid = document.getElementById('paged-memory');
+        grid.innerHTML = '';
+
+        // Assign blocks to sequences (non-contiguous)
+        const assignments = {};
+        const usedBlocks = new Set();
+
+        for (let r = 0; r < numReq; r++) {
+            assignments[r] = [];
+            for (let b = 0; b < blocksPerSeq; b++) {
+                // Find next free block (scattered)
+                let blockId = (r * blocksPerSeq + b) % NUM_BLOCKS;
+                while (usedBlocks.has(blockId)) {
+                    blockId = (blockId + 1) % NUM_BLOCKS;
+                }
+                usedBlocks.add(blockId);
+                assignments[r].push(blockId);
+            }
+        }
+
+        // Render blocks
+        for (let i = 0; i < NUM_BLOCKS; i++) {
+            const div = document.createElement('div');
+            div.className = 'memory-block';
+
+            let assigned = -1;
+            for (let r = 0; r < numReq; r++) {
+                if (assignments[r].includes(i)) {
+                    assigned = r;
+                    break;
+                }
+            }
+
+            if (assigned >= 0) {
+                div.classList.add('allocated');
+                div.style.background = COLORS[assigned] + '40';
+                div.style.borderColor = COLORS[assigned];
+                div.textContent = `S${assigned}`;
+            } else {
+                div.classList.add('free');
+                div.textContent = '';
+            }
+
+            grid.appendChild(div);
+        }
+
+        // Render logical sequences
+        const logicalDiv = document.getElementById('logical-sequences');
+        logicalDiv.innerHTML = '';
+
+        for (let r = 0; r < numReq; r++) {
+            const seqDiv = document.createElement('div');
+            seqDiv.className = 'sequence-block';
+
+            const label = document.createElement('div');
+            label.className = 'seq-label';
+            label.textContent = `Sequence ${r}`;
+            label.style.color = COLORS[r];
+            seqDiv.appendChild(label);
+
+            for (let b = 0; b < blocksPerSeq; b++) {
+                const block = document.createElement('div');
+                block.className = 'token';
+                block.style.background = COLORS[r] + '30';
+                block.style.border = `1px solid ${COLORS[r]}`;
+                block.textContent = assignments[r][b];
+                block.title = `Logical block ${b} → Physical block ${assignments[r][b]}`;
+                seqDiv.appendChild(block);
+            }
+
+            logicalDiv.appendChild(seqDiv);
+        }
+
+        // Efficiency bar
+        const utilPct = (totalBlocksNeeded / NUM_BLOCKS * 100).toFixed(0);
+        const effDiv = document.getElementById('paged-efficiency');
+        effDiv.innerHTML = `
+            <div class="efficiency-segment" style="width: ${utilPct}%; background: rgba(16,185,129,0.4);">
+                ${utilPct}% Used
+            </div>
+            <div class="efficiency-segment" style="width: ${100 - utilPct}%; background: rgba(255,255,255,0.05);">
+                ${100 - utilPct}% Free
+            </div>
+        `;
+    }
+
+    // ── Initialize ────────────────────────────────────────────
+    renderTraditional();
+    updateVisualization();
+</script>
+
+</body>
+</html>

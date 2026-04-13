@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Dynamics — Interactive Visualization</title>
+    <style>
+        :root { --bg-void: #030712; --bg-surface: #0a0f1e; --bg-panel: #0f172a; --accent-cyan: #06b6d4; --accent-violet: #7c3aed; --accent-emerald: #10b981; --accent-amber: #f59e0b; --accent-rose: #f43f5e; --text-primary: #f1f5f9; --text-secondary: #94a3b8; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-void); color: var(--text-primary); }
+        .hero { text-align: center; padding: 60px 20px 40px; background: linear-gradient(180deg, rgba(124,58,237,0.1) 0%, transparent 100%); }
+        .hero h1 { font-size: 3rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-violet), var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { font-size: 1.2rem; color: var(--text-secondary); max-width: 800px; margin: 16px auto 0; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .section { background: var(--bg-panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; margin-bottom: 24px; }
+        .section h2 { font-size: 1.5rem; color: var(--accent-violet); margin-bottom: 20px; }
+        .viz-area { background: var(--bg-surface); border-radius: 12px; padding: 20px; min-height: 300px; position: relative; }
+        .controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+        .btn { padding: 10px 20px; border: 1px solid var(--accent-violet); background: transparent; color: var(--accent-violet); border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
+        .btn:hover, .btn.active { background: var(--accent-violet); color: var(--bg-void); }
+        .slider-group { margin: 16px 0; }
+        .slider-group label { display: block; margin-bottom: 8px; color: var(--text-secondary); }
+        .slider-group input[type="range"] { width: 100%; accent-color: var(--accent-violet); }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; }
+        .stat-card { background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-label { font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; }
+
+        /* Loss curve */
+        canvas { border-radius: 8px; }
+
+        /* Optimizer comparison */
+        .optimizer-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .optimizer-table th, .optimizer-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .optimizer-table th { background: rgba(124,58,237,0.1); color: var(--accent-violet); }
+
+        /* Loss landscape */
+        .landscape-container { position: relative; width: 100%; height: 400px; }
+    </style>
+</head>
+<body>
+
+<div class="hero">
+    <h1>Training Dynamics</h1>
+    <p>Loss Landscapes, Optimizers, and the Art of Training Neural Networks</p>
+</div>
+
+<div class="container">
+
+    <!-- Live Loss Curve -->
+    <div class="section">
+        <h2>📈 Live Loss Curve Simulation</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Watch loss decrease in real-time. Adjust learning rate and batch size to see their effects.
+        </p>
+
+        <div class="controls">
+            <button class="btn active" id="btn-start" onclick="toggleTraining()">▶ Start Training</button>
+            <button class="btn" onclick="resetTraining()">↺ Reset</button>
+        </div>
+
+        <div class="slider-group">
+            <label>Learning Rate: <span id="lr-val">0.001</span></label>
+            <input type="range" id="lr" min="-5" max="-1" step="0.1" value="-3" onchange="updateLR()">
+        </div>
+
+        <div class="slider-group">
+            <label>Batch Size: <span id="bs-val">32</span></label>
+            <input type="range" id="batch-size" min="1" max="7" step="1" value="5" onchange="updateBS()">
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" style="color: var(--accent-cyan);" id="current-loss">2.50</div>
+                <div class="stat-label">Current Loss</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color: var(--accent-emerald);" id="best-loss">2.50</div>
+                <div class="stat-label">Best Loss</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color: var(--accent-violet);" id="step-count">0</div>
+                <div class="stat-label">Steps</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color: var(--accent-amber);" id="grad-norm">0.00</div>
+                <div class="stat-label">Grad Norm</div>
+            </div>
+        </div>
+
+        <div class="viz-area">
+            <canvas id="loss-canvas" width="800" height="300"></canvas>
+        </div>
+    </div>
+
+    <!-- Optimizer Comparison -->
+    <div class="section">
+        <h2>⚡ Optimizer Comparison</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Different optimizers take different paths through the loss landscape.
+            Watch them race to the minimum.
+        </p>
+
+        <div class="controls">
+            <button class="btn active" onclick="startRace()">🏁 Start Race</button>
+            <button class="btn" onclick="resetRace()">↺ Reset</button>
+        </div>
+
+        <div class="viz-area">
+            <canvas id="optimizer-canvas" width="800" height="400"></canvas>
+        </div>
+
+        <table class="optimizer-table" style="margin-top: 20px;">
+            <thead>
+                <tr>
+                    <th>Optimizer</th>
+                    <th>Update Rule</th>
+                    <th>Best For</th>
+                    <th>Color</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>SGD</strong></td>
+                    <td>θ = θ - lr × g</td>
+                    <td>Simple problems, final convergence</td>
+                    <td><span style="color: var(--accent-cyan);">■ Cyan</span></td>
+                </tr>
+                <tr>
+                    <td><strong>SGD + Momentum</strong></td>
+                    <td>v = βv + g; θ = θ - lr × v</td>
+                    <td>Faster convergence, escaping local minima</td>
+                    <td><span style="color: var(--accent-emerald);">■ Green</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Adam</strong></td>
+                    <td>m = β₁m + (1-β₁)g; v = β₂v + (1-β₂)g²</td>
+                    <td>Default choice, fast convergence</td>
+                    <td><span style="color: var(--accent-violet);">■ Violet</span></td>
+                </tr>
+                <tr>
+                    <td><strong>AdamW</strong></td>
+                    <td>Adam + weight decay</td>
+                    <td>LLM training (standard)</td>
+                    <td><span style="color: var(--accent-amber);">■ Amber</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Learning Rate Effects -->
+    <div class="section">
+        <h2>🎛️ Learning Rate Effects</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Learning rate is the most important hyperparameter. Too high → divergence. Too low → slow convergence.
+        </p>
+
+        <div class="viz-area">
+            <canvas id="lr-canvas" width="800" height="300"></canvas>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px;">
+            <div style="background: var(--bg-surface); padding: 16px; border-radius: 12px; border: 1px solid rgba(244,63,94,0.3);">
+                <h4 style="color: var(--accent-rose);">Too High</h4>
+                <p style="color: var(--text-secondary); font-size: 0.85rem;">Loss oscillates or explodes. Gradients overshoot the minimum.</p>
+            </div>
+            <div style="background: var(--bg-surface); padding: 16px; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);">
+                <h4 style="color: var(--accent-emerald);">Just Right</h4>
+                <p style="color: var(--text-secondary); font-size: 0.85rem;">Smooth convergence. Fast but stable descent.</p>
+            </div>
+            <div style="background: var(--bg-surface); padding: 16px; border-radius: 12px; border: 1px solid rgba(245,158,11,0.3);">
+                <h4 style="color: var(--accent-amber);">Too Low</h4>
+                <p style="color: var(--text-secondary); font-size: 0.85rem;">Very slow convergence. May get stuck in local minima.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gradient Flow -->
+    <div class="section">
+        <h2>🌊 Gradient Flow Visualization</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Gradients flow backward through the network. Watch for vanishing and exploding gradients.
+        </p>
+
+        <div class="controls">
+            <button class="btn active" onclick="setGradMode('normal')">Normal</button>
+            <button class="btn" onclick="setGradMode('vanishing')">Vanishing</button>
+            <button class="btn" onclick="setGradMode('exploding')">Exploding</button>
+        </div>
+
+        <div class="viz-area">
+            <canvas id="gradient-canvas" width="800" height="200"></canvas>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // ═══════════════════════════════════════════════════════════
+    // LOSS CURVE SIMULATION
+    // ═══════════════════════════════════════════════════════════
+    const lossCanvas = document.getElementById('loss-canvas');
+    const lossCtx = lossCanvas.getContext('2d');
+
+    let lossHistory = [];
+    let isTraining = false;
+    let trainingInterval = null;
+    let learningRate = 0.001;
+    let batchSize = 32;
+    let step = 0;
+    let bestLoss = 2.5;
+
+    function updateLR() {
+        const val = parseFloat(document.getElementById('lr').value);
+        learningRate = Math.pow(10, val);
+        document.getElementById('lr-val').textContent = learningRate.toExponential(1);
+    }
+
+    function updateBS() {
+        const val = parseInt(document.getElementById('batch-size').value);
+        batchSize = Math.pow(2, val);
+        document.getElementById('bs-val').textContent = batchSize;
+    }
+
+    function simulateLoss() {
+        // Simulate loss decrease with noise
+        const prevLoss = lossHistory.length > 0 ? lossHistory[lossHistory.length - 1] : 2.5;
+        const noise = (Math.random() - 0.5) * 0.1 / Math.sqrt(batchSize);
+        const decay = learningRate * 10;
+        const newLoss = Math.max(0.1, prevLoss * (1 - decay) + noise);
+
+        lossHistory.push(newLoss);
+        step++;
+
+        if (newLoss < bestLoss) bestLoss = newLoss;
+
+        // Update stats
+        document.getElementById('current-loss').textContent = newLoss.toFixed(3);
+        document.getElementById('best-loss').textContent = bestLoss.toFixed(3);
+        document.getElementById('step-count').textContent = step;
+        document.getElementById('grad-norm').textContent = (Math.random() * 2 + 0.5).toFixed(2);
+
+        drawLossCurve();
+    }
+
+    function drawLossCurve() {
+        lossCtx.fillStyle = '#0a0f1e';
+        lossCtx.fillRect(0, 0, lossCanvas.width, lossCanvas.height);
+
+        if (lossHistory.length < 2) return;
+
+        const maxLoss = Math.max(...lossHistory) * 1.1;
+        const minLoss = Math.min(...lossHistory) * 0.9;
+
+        // Draw grid
+        lossCtx.strokeStyle = 'rgba(255,255,255,0.05)';
+        lossCtx.lineWidth = 1;
+        for (let i = 0; i < 5; i++) {
+            const y = (i / 4) * lossCanvas.height;
+            lossCtx.beginPath();
+            lossCtx.moveTo(0, y);
+            lossCtx.lineTo(lossCanvas.width, y);
+            lossCtx.stroke();
+        }
+
+        // Draw loss curve
+        lossCtx.strokeStyle = '#06b6d4';
+        lossCtx.lineWidth = 2;
+        lossCtx.beginPath();
+
+        const displayHistory = lossHistory.slice(-200);
+        for (let i = 0; i < displayHistory.length; i++) {
+            const x = (i / (displayHistory.length - 1)) * lossCanvas.width;
+            const y = lossCanvas.height - ((displayHistory[i] - minLoss) / (maxLoss - minLoss)) * lossCanvas.height;
+
+            if (i === 0) lossCtx.moveTo(x, y);
+            else lossCtx.lineTo(x, y);
+        }
+        lossCtx.stroke();
+
+        // Draw current point
+        const lastX = lossCanvas.width;
+        const lastY = lossCanvas.height - ((displayHistory[displayHistory.length - 1] - minLoss) / (maxLoss - minLoss)) * lossCanvas.height;
+        lossCtx.fillStyle = '#06b6d4';
+        lossCtx.beginPath();
+        lossCtx.arc(lastX - 5, lastY, 4, 0, Math.PI * 2);
+        lossCtx.fill();
+    }
+
+    function toggleTraining() {
+        isTraining = !isTraining;
+        const btn = document.getElementById('btn-start');
+        if (isTraining) {
+            btn.textContent = '⏸ Pause';
+            trainingInterval = setInterval(simulateLoss, 50);
+        } else {
+            btn.textContent = '▶ Start Training';
+            clearInterval(trainingInterval);
+        }
+    }
+
+    function resetTraining() {
+        isTraining = false;
+        clearInterval(trainingInterval);
+        document.getElementById('btn-start').textContent = '▶ Start Training';
+        lossHistory = [];
+        step = 0;
+        bestLoss = 2.5;
+        drawLossCurve();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // OPTIMIZER RACE
+    // ═══════════════════════════════════════════════════════════
+    const optCanvas = document.getElementById('optimizer-canvas');
+    const optCtx = optCanvas.getContext('2d');
+
+    const optimizers = [
+        { name: 'SGD', color: '#06b6d4', x: -2, y: 2, vx: 0, vy: 0, beta: 0 },
+        { name: 'SGD+M', color: '#10b981', x: -2, y: 2, vx: 0, vy: 0, beta: 0.9 },
+        { name: 'Adam', color: '#7c3aed', x: -2, y: 2, vx: 0, vy: 0, beta: 0.9, m: { x: 0, y: 0 }, v: { x: 0, y: 0 } },
+        { name: 'AdamW', color: '#f59e0b', x: -2, y: 2, vx: 0, vy: 0, beta: 0.9, m: { x: 0, y: 0 }, v: { x: 0, y: 0 } },
+    ];
+
+    let raceInterval = null;
+
+    function lossLandscape(x, y) {
+        // Rosenbrock-like function
+        return (1 - x) * (1 - x) + 100 * (y - x * x) * (y - x * x);
+    }
+
+    function gradient(x, y) {
+        const h = 0.001;
+        return {
+            x: (lossLandscape(x + h, y) - lossLandscape(x - h, y)) / (2 * h),
+            y: (lossLandscape(x, y + h) - lossLandscape(x, y - h)) / (2 * h)
+        };
+    }
+
+    function drawLandscape() {
+        optCtx.fillStyle = '#0a0f1e';
+        optCtx.fillRect(0, 0, optCanvas.width, optCanvas.height);
+
+        // Draw contour
+        for (let px = 0; px < optCanvas.width; px += 4) {
+            for (let py = 0; py < optCanvas.height; py += 4) {
+                const x = (px / optCanvas.width - 0.5) * 4;
+                const y = (py / optCanvas.height - 0.5) * 4;
+                const loss = lossLandscape(x, y);
+                const intensity = Math.min(1, Math.log(loss + 1) / 5);
+                optCtx.fillStyle = `rgba(124, 58, 237, ${intensity * 0.5})`;
+                optCtx.fillRect(px, py, 4, 4);
+            }
+        }
+
+        // Draw optimizer paths
+        optimizers.forEach(opt => {
+            const px = (opt.x / 4 + 0.5) * optCanvas.width;
+            const py = (opt.y / 4 + 0.5) * optCanvas.height;
+            optCtx.fillStyle = opt.color;
+            optCtx.beginPath();
+            optCtx.arc(px, py, 6, 0, Math.PI * 2);
+            optCtx.fill();
+        });
+    }
+
+    function stepRace() {
+        const lr = 0.001;
+        optimizers.forEach(opt => {
+            const g = gradient(opt.x, opt.y);
+
+            if (opt.m) {
+                // Adam-like
+                opt.m.x = 0.9 * opt.m.x + 0.1 * g.x;
+                opt.m.y = 0.9 * opt.m.y + 0.1 * g.y;
+                opt.v.x = 0.999 * opt.v.x + 0.001 * g.x * g.x;
+                opt.v.y = 0.999 * opt.v.y + 0.001 * g.y * g.y;
+
+                opt.x -= lr * opt.m.x / (Math.sqrt(opt.v.x) + 1e-8);
+                opt.y -= lr * opt.m.y / (Math.sqrt(opt.v.y) + 1e-8);
+            } else if (opt.beta > 0) {
+                // Momentum
+                opt.vx = opt.beta * opt.vx + g.x;
+                opt.vy = opt.beta * opt.vy + g.y;
+                opt.x -= lr * opt.vx;
+                opt.y -= lr * opt.vy;
+            } else {
+                // SGD
+                opt.x -= lr * g.x;
+                opt.y -= lr * g.y;
+            }
+        });
+
+        drawLandscape();
+    }
+
+    function startRace() {
+        if (raceInterval) clearInterval(raceInterval);
+        raceInterval = setInterval(stepRace, 50);
+    }
+
+    function resetRace() {
+        clearInterval(raceInterval);
+        optimizers.forEach(opt => {
+            opt.x = -2; opt.y = 2; opt.vx = 0; opt.vy = 0;
+            if (opt.m) { opt.m.x = 0; opt.m.y = 0; opt.v.x = 0; opt.v.y = 0; }
+        });
+        drawLandscape();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // LEARNING RATE COMPARISON
+    // ═══════════════════════════════════════════════════════════
+    const lrCanvas = document.getElementById('lr-canvas');
+    const lrCtx = lrCanvas.getContext('2d');
+
+    function drawLRComparison() {
+        lrCtx.fillStyle = '#0a0f1e';
+        lrCtx.fillRect(0, 0, lrCanvas.width, lrCanvas.height);
+
+        const configs = [
+            { lr: 0.1, color: '#f43f5e', label: 'Too High' },
+            { lr: 0.01, color: '#10b981', label: 'Just Right' },
+            { lr: 0.001, color: '#f59e0b', label: 'Too Low' },
+        ];
+
+        configs.forEach(cfg => {
+            lrCtx.strokeStyle = cfg.color;
+            lrCtx.lineWidth = 2;
+            lrCtx.beginPath();
+
+            let loss = 2.5;
+            for (let i = 0; i < 200; i++) {
+                const x = (i / 199) * lrCanvas.width;
+                const noise = (Math.random() - 0.5) * 0.1;
+
+                if (cfg.lr > 0.05) {
+                    // Divergent
+                    loss = loss * (1 + cfg.lr * 0.5) + noise;
+                    loss = Math.min(loss, 10);
+                } else if (cfg.lr > 0.005) {
+                    // Good convergence
+                    loss = loss * (1 - cfg.lr * 2) + noise * 0.5;
+                } else {
+                    // Slow convergence
+                    loss = loss * (1 - cfg.lr * 5) + noise * 0.3;
+                }
+
+                const y = lrCanvas.height - (loss / 10) * lrCanvas.height;
+                if (i === 0) lrCtx.moveTo(x, y);
+                else lrCtx.lineTo(x, y);
+            }
+            lrCtx.stroke();
+        });
+
+        // Legend
+        configs.forEach((cfg, i) => {
+            lrCtx.fillStyle = cfg.color;
+            lrCtx.fillRect(lrCanvas.width - 120, 20 + i * 20, 12, 12);
+            lrCtx.fillStyle = '#94a3b8';
+            lrCtx.font = '12px Inter';
+            lrCtx.fillText(cfg.label, lrCanvas.width - 100, 30 + i * 20);
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // GRADIENT FLOW
+    // ═══════════════════════════════════════════════════════════
+    const gradCanvas = document.getElementById('gradient-canvas');
+    const gradCtx = gradCanvas.getContext('2d');
+    let gradMode = 'normal';
+
+    function setGradMode(mode) {
+        gradMode = mode;
+        document.querySelectorAll('.controls .btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        drawGradientFlow();
+    }
+
+    function drawGradientFlow() {
+        gradCtx.fillStyle = '#0a0f1e';
+        gradCtx.fillRect(0, 0, gradCanvas.width, gradCanvas.height);
+
+        const layers = 8;
+        const layerWidth = gradCanvas.width / layers;
+
+        for (let l = 0; l < layers; l++) {
+            const x = l * layerWidth + layerWidth / 2;
+
+            // Gradient magnitude depends on mode
+            let gradMag;
+            if (gradMode === 'vanishing') {
+                gradMag = Math.pow(0.5, l); // Exponentially decreasing
+            } else if (gradMode === 'exploding') {
+                gradMag = Math.pow(2, l); // Exponentially increasing
+            } else {
+                gradMag = 1 - Math.abs(l - layers/2) / layers; // Normal
+            }
+
+            // Draw layer
+            const barHeight = gradMag * 150;
+            const color = gradMode === 'vanishing' ? '#f43f5e' :
+                         gradMode === 'exploding' ? '#f59e0b' : '#06b6d4';
+
+            gradCtx.fillStyle = color + '40';
+            gradCtx.strokeStyle = color;
+            gradCtx.lineWidth = 2;
+
+            gradCtx.beginPath();
+            gradCtx.rect(x - 30, gradCanvas.height - barHeight - 20, 60, barHeight);
+            gradCtx.fill();
+            gradCtx.stroke();
+
+            // Layer label
+            gradCtx.fillStyle = '#94a3b8';
+            gradCtx.font = '11px Inter';
+            gradCtx.textAlign = 'center';
+            gradCtx.fillText(`L${l}`, x, gradCanvas.height - 5);
+        }
+
+        // Direction arrow
+        gradCtx.fillStyle = '#94a3b8';
+        gradCtx.font = '14px Inter';
+        gradCtx.textAlign = 'center';
+        gradCtx.fillText('← Backward Pass', gradCanvas.width / 2, 20);
+    }
+
+    // Initialize
+    drawLossCurve();
+    drawLandscape();
+    drawLRComparison();
+    drawGradientFlow();
+</script>
+
+</body>
+</html>

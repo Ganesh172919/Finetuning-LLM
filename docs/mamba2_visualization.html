@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mamba-2 & Vision Mamba — Interactive Architecture Visualization</title>
+    <style>
+        :root {
+            --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a2e;
+            --accent: #00d2ff; --accent2: #6c63ff; --success: #00e676;
+            --warning: #ffab00; --error: #ff5252; --text: #e0e0e0;
+            --text-dim: #888; --border: #2a2a3e;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        h1 { font-size: 2.5rem; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-size: 1.5rem; color: var(--accent); margin: 2rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h3 { font-size: 1.1rem; color: var(--accent2); margin: 1rem 0 0.5rem; }
+        .subtitle { color: var(--text-dim); margin-bottom: 2rem; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin: 1rem 0; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+        @media (max-width: 768px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+        canvas { display: block; width: 100%; border-radius: 8px; }
+        .viz-container { background: var(--surface2); border-radius: 12px; padding: 1rem; margin: 1rem 0; }
+        button { background: var(--accent); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
+        button:hover { background: #00b8e0; }
+        .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+        .slider-group { display: flex; align-items: center; gap: 1rem; margin: 0.5rem 0; }
+        .slider-group label { min-width: 120px; font-size: 0.9rem; color: var(--text-dim); }
+        input[type="range"] { flex: 1; -webkit-appearance: none; height: 4px; background: var(--border); border-radius: 2px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: var(--accent); border-radius: 50%; cursor: pointer; }
+        .value-display { min-width: 60px; text-align: right; font-family: monospace; color: var(--accent); }
+        .metric { text-align: center; padding: 1rem; }
+        .metric-value { font-size: 2rem; font-weight: bold; font-family: monospace; }
+        .metric-label { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; }
+        .flow-diagram { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+        .flow-step { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1.2rem; text-align: center; font-size: 0.85rem; min-width: 90px; transition: all 0.3s; }
+        .flow-step.active { border-color: var(--accent); background: rgba(0,210,255,0.1); box-shadow: 0 0 15px rgba(0,210,255,0.2); }
+        .flow-step .step-num { font-size: 0.7rem; color: var(--accent); display: block; }
+        .flow-arrow { color: var(--accent); font-size: 1.2rem; }
+        .formula { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; font-family: 'Cambria Math', serif; text-align: center; margin: 1rem 0; }
+        .formula .hl { color: var(--accent); font-weight: bold; }
+        .formula .var { color: var(--accent2); }
+        .tabs { display: flex; border-bottom: 1px solid var(--border); margin: 1rem 0 0; }
+        .tab { padding: 0.7rem 1.2rem; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; }
+        .tab:hover { color: var(--text); }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab-content { display: none; padding: 1rem 0; }
+        .tab-content.active { display: block; }
+        .state-cell { width: 20px; height: 20px; border-radius: 3px; display: inline-block; margin: 1px; transition: background 0.3s; }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐍 Mamba-2 & Vision Mamba</h1>
+        <p class="subtitle">Interactive visualization of Selective State Space Models — O(n) alternatives to attention</p>
+
+        <!-- OVERVIEW -->
+        <h2>📚 What is Mamba?</h2>
+        <div class="card">
+            <p><strong>Mamba</strong> is a selective state space model that processes sequences in O(n) time
+            instead of O(n²) like attention. It maintains a compressed hidden state that selectively
+            remembers or forgets information based on the input.</p>
+
+            <div class="formula">
+                <span class="hl">h_t</span> = <span class="var">A̅</span> · h_{t-1} + <span class="var">B̅</span> · x_t &nbsp;&nbsp;&nbsp; (state update)
+                &nbsp;&nbsp;&nbsp; → &nbsp;&nbsp;&nbsp;
+                <span class="hl">y_t</span> = <span class="var">C_t</span> · h_t &nbsp;&nbsp;&nbsp; (output)
+            </div>
+
+            <p style="color: var(--text-dim); margin-top: 0.5rem;">
+            The "selective" part: <strong>B, C, and dt are input-dependent</strong> — the model learns
+            WHAT to remember and WHEN to remember it.</p>
+        </div>
+
+        <!-- ARCHITECTURE COMPARISON -->
+        <h2>⚖️ Transformer vs Mamba</h2>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('transformer')">Transformer</div>
+            <div class="tab" onclick="switchTab('mamba')">Mamba</div>
+            <div class="tab" onclick="switchTab('hybrid')">Hybrid</div>
+        </div>
+        <div id="tab-transformer" class="tab-content active">
+            <div class="card">
+                <h3>Transformer (Attention)</h3>
+                <ul style="margin: 0.5rem 0 0 1.5rem;">
+                    <li><strong>Complexity:</strong> O(n²) — every token attends to every other token</li>
+                    <li><strong>Memory:</strong> O(n²) — stores all key-value pairs</li>
+                    <li><strong>Quality:</strong> Excellent — full context at every layer</li>
+                    <li><strong>Inference:</strong> O(n) per token with KV cache</li>
+                    <li><strong>Best for:</strong> Tasks needing precise token recall</li>
+                </ul>
+            </div>
+        </div>
+        <div id="tab-mamba" class="tab-content">
+            <div class="card">
+                <h3>Mamba (Selective SSM)</h3>
+                <ul style="margin: 0.5rem 0 0 1.5rem;">
+                    <li><strong>Complexity:</strong> O(n) — linear scan through sequence</li>
+                    <li><strong>Memory:</strong> O(1) per step — fixed-size hidden state</li>
+                    <li><strong>Quality:</strong> Competitive with transformers on language</li>
+                    <li><strong>Inference:</strong> O(1) per token — constant memory!</li>
+                    <li><strong>Best for:</strong> Long sequences, real-time, memory-constrained</li>
+                </ul>
+            </div>
+        </div>
+        <div id="tab-hybrid" class="tab-content">
+            <div class="card">
+                <h3>Hybrid (Mamba + Attention)</h3>
+                <ul style="margin: 0.5rem 0 0 1.5rem;">
+                    <li><strong>Complexity:</strong> O(n) for most layers, O(n²) for attention layers</li>
+                    <li><strong>Quality:</strong> Best of both worlds</li>
+                    <li><strong>Used by:</strong> Jamba (AI21), Zamba (Zyphra)</li>
+                    <li><strong>Best for:</strong> Production systems needing quality + efficiency</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- INTERACTIVE SIMULATION -->
+        <h2>🎮 Interactive SSM Simulation</h2>
+        <div class="grid-2">
+            <div class="card">
+                <h3>Parameters</h3>
+                <div class="slider-group">
+                    <label>Sequence Length</label>
+                    <input type="range" id="seqLen" min="8" max="64" value="16" step="1">
+                    <span class="value-display" id="seqLenVal">16</span>
+                </div>
+                <div class="slider-group">
+                    <label>State Dim</label>
+                    <input type="range" id="stateDim" min="2" max="16" value="8" step="1">
+                    <span class="value-display" id="stateDimVal">8</span>
+                </div>
+                <div class="slider-group">
+                    <label>Selectivity</label>
+                    <input type="range" id="selectivity" min="0" max="1" value="0.5" step="0.05">
+                    <span class="value-display" id="selectivityVal">0.50</span>
+                </div>
+                <div class="controls">
+                    <button onclick="runSSM()">▶ Run SSM</button>
+                    <button onclick="runSequence()">▶▶ Run Sequence</button>
+                    <button onclick="resetSSM()" style="background: var(--surface2); border: 1px solid var(--border);">↻ Reset</button>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Metrics</h3>
+                <div class="grid-3">
+                    <div class="metric">
+                        <div class="metric-value" id="metricTime" style="color: var(--accent);">0ms</div>
+                        <div class="metric-label">Time</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="metricMemory" style="color: var(--success);">0</div>
+                        <div class="metric-label">State Size</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="metricTokens" style="color: var(--warning);">0</div>
+                        <div class="metric-label">Tokens/s</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATE VISUALIZATION -->
+        <h2>🧊 Hidden State Evolution</h2>
+        <div class="card">
+            <p style="color: var(--text-dim); margin-bottom: 1rem;">
+            Watch how the hidden state evolves as tokens are processed. Each row is one timestep.
+            Brighter cells = higher activation. Notice how the state selectively remembers important tokens.</p>
+            <div id="stateGrid" style="font-family: monospace; overflow-x: auto;"></div>
+        </div>
+
+        <!-- COMPARISON CHART -->
+        <h2>📊 Complexity Comparison</h2>
+        <div class="card">
+            <div class="viz-container">
+                <canvas id="complexityChart" height="300"></canvas>
+            </div>
+        </div>
+
+        <!-- FLOW DIAGRAM -->
+        <h2>🔄 Mamba Block Flow</h2>
+        <div class="flow-diagram" id="mambaFlow">
+            <div class="flow-step active" id="f1"><span class="step-num">1</span>Input x</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" id="f2"><span class="step-num">2</span>LayerNorm</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" id="f3"><span class="step-num">3</span>Linear</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" id="f4"><span class="step-num">4</span>Conv1d</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" id="f5"><span class="step-num">5</span>SSM</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" id="f6"><span class="step-num">6</span>Gate</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" id="f7"><span class="step-num">7</span>Output</div>
+        </div>
+
+        <!-- KEY INSIGHTS -->
+        <h2>💡 Key Insights</h2>
+        <div class="grid-2">
+            <div class="card">
+                <h3>🎯 Selectivity is Key</h3>
+                <p>Traditional SSMs use fixed matrices (A, B, C). Mamba makes them
+                <strong>input-dependent</strong> — the model learns WHEN to remember
+                and WHAT to forget. This is what makes it competitive with attention.</p>
+            </div>
+            <div class="card">
+                <h3>⚡ Hardware Efficiency</h3>
+                <p>Mamba-2's SSD (Structured State Space Duality) shows that SSMs
+                can be implemented as matrix multiplications, getting GPU-friendly
+                parallelism while maintaining recurrence's efficiency.</p>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin: 3rem 0; color: var(--text-dim); font-size: 0.85rem;">
+            <p>SOTA AI — State-of-the-Art AI from Scratch</p>
+        </div>
+    </div>
+
+    <script>
+        // === STATE ===
+        let ssmState = null;
+        let stepCount = 0;
+
+        // === UTILITIES ===
+        function randn() { let u1=Math.random(),u2=Math.random(); return Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2); }
+        function sigmoid(x) { return 1/(1+Math.exp(-Math.max(-20,Math.min(20,x)))); }
+
+        // === SSM SIMULATION ===
+        function runSSM() {
+            const seqLen = parseInt(document.getElementById('seqLen').value);
+            const stateDim = parseInt(document.getElementById('stateDim').value);
+            const selectivity = parseFloat(document.getElementById('selectivity').value);
+
+            const start = performance.now();
+
+            // Initialize state
+            if (!ssmState) ssmState = { h: new Array(stateDim).fill(0), history: [], outputs: [] };
+
+            // Process one token
+            const x = randn() * 0.5;
+            const A = -0.5 - selectivity * Math.abs(randn()); // Decay rate
+            const B = selectivity * randn();  // Input coupling (selective)
+            const C = selectivity * randn();  // Output coupling (selective)
+            const dt = 0.01;
+
+            // State update: h = exp(A*dt) * h + dt*B*x
+            const A_bar = Math.exp(A * dt);
+            for (let i = 0; i < stateDim; i++) {
+                ssmState.h[i] = A_bar * ssmState.h[i] + dt * B * x;
+                // Add some state-specific variation
+                if (i === Math.floor(stateDim * sigmoid(x))) {
+                    ssmState.h[i] += 0.1 * x; // Selective write
+                }
+            }
+
+            // Output: y = C * sum(h)
+            const y = C * ssmState.h.reduce((s, v) => s + v, 0);
+
+            ssmState.history.push([...ssmState.h]);
+            ssmState.outputs.push(y);
+            stepCount++;
+
+            const elapsed = performance.now() - start;
+
+            // Update UI
+            document.getElementById('metricTime').textContent = elapsed.toFixed(2) + 'ms';
+            document.getElementById('metricMemory').textContent = stateDim;
+            document.getElementById('metricTokens').textContent = Math.round(1000 / Math.max(elapsed, 0.01));
+
+            updateStateGrid();
+            updateFlowDiagram();
+            updateComplexityChart();
+        }
+
+        function runSequence() {
+            let count = 0;
+            const interval = setInterval(() => { runSSM(); count++; if (count >= 16) clearInterval(interval); }, 100);
+        }
+
+        function resetSSM() {
+            ssmState = null;
+            stepCount = 0;
+            document.getElementById('stateGrid').innerHTML = '';
+            document.getElementById('metricTime').textContent = '0ms';
+            document.getElementById('metricMemory').textContent = '0';
+            document.getElementById('metricTokens').textContent = '0';
+        }
+
+        // === STATE GRID ===
+        function updateStateGrid() {
+            if (!ssmState) return;
+            const container = document.getElementById('stateGrid');
+            const history = ssmState.history;
+            const stateDim = parseInt(document.getElementById('stateDim').value);
+
+            let html = '<div style="display: flex; gap: 2px; flex-direction: column;">';
+            const maxSteps = Math.min(history.length, 32);
+            const startIdx = Math.max(0, history.length - maxSteps);
+
+            for (let t = startIdx; t < history.length; t++) {
+                html += '<div style="display: flex; gap: 1px; align-items: center;">';
+                html += `<span style="width: 30px; font-size: 0.7rem; color: var(--text-dim); text-align: right;">${t}</span>`;
+                for (let i = 0; i < stateDim; i++) {
+                    const val = history[t][i];
+                    const intensity = Math.min(1, Math.abs(val) * 5);
+                    const color = val >= 0
+                        ? `rgba(0, 210, 255, ${intensity})`
+                        : `rgba(255, 82, 82, ${intensity})`;
+                    html += `<span class="state-cell" style="background: ${color};" title="t=${t} s=${i} v=${val.toFixed(3)}"></span>`;
+                }
+                html += '</div>';
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // === COMPLEXITY CHART ===
+        function updateComplexityChart() {
+            const canvas = document.getElementById('complexityChart');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width = canvas.offsetWidth * 2;
+            const h = canvas.height = 600;
+            ctx.clearRect(0, 0, w, h);
+
+            const padding = 60;
+            const plotW = w - padding * 2;
+            const plotH = h - padding * 2;
+
+            // Data points
+            const seqLens = [128, 512, 2048, 8192, 32768, 131072];
+            const attnFlops = seqLens.map(n => n * n);
+            const ssmFlops = seqLens.map(n => n * 64);
+            const maxFlop = Math.max(...attnFlops);
+
+            // Grid
+            ctx.strokeStyle = '#2a2a3e';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding + (plotH / 4) * i;
+                ctx.beginPath(); ctx.moveTo(padding, y); ctx.lineTo(w - padding, y); ctx.stroke();
+            }
+
+            // Draw lines
+            function drawLine(data, color, label) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                for (let i = 0; i < data.length; i++) {
+                    const x = padding + (i / (data.length - 1)) * plotW;
+                    const y = padding + plotH - (Math.log10(data[i]) / Math.log10(maxFlop)) * plotH;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Points
+                ctx.fillStyle = color;
+                for (let i = 0; i < data.length; i++) {
+                    const x = padding + (i / (data.length - 1)) * plotW;
+                    const y = padding + plotH - (Math.log10(data[i]) / Math.log10(maxFlop)) * plotH;
+                    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+                }
+
+                // Label
+                ctx.fillStyle = color;
+                ctx.font = '24px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(label, w - padding - 150, padding + 30 + (label.includes('SSM') ? 30 : 0));
+            }
+
+            drawLine(attnFlops, '#ff5252', 'Attention O(n²)');
+            drawLine(ssmFlops, '#00d2ff', 'Mamba O(n)');
+
+            // X-axis labels
+            ctx.fillStyle = '#888';
+            ctx.font = '18px monospace';
+            ctx.textAlign = 'center';
+            for (let i = 0; i < seqLens.length; i++) {
+                const x = padding + (i / (seqLens.length - 1)) * plotW;
+                ctx.fillText(seqLens[i].toLocaleString(), x, h - 10);
+            }
+
+            // Title
+            ctx.fillStyle = '#e0e0e0';
+            ctx.font = '24px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('FLOPs Comparison (log scale)', padding, padding - 20);
+        }
+
+        // === FLOW DIAGRAM ===
+        function updateFlowDiagram() {
+            const steps = ['f1','f2','f3','f4','f5','f6','f7'];
+            const activeIdx = stepCount % steps.length;
+            steps.forEach((id, i) => {
+                document.getElementById(id).classList.toggle('active', i <= activeIdx);
+            });
+        }
+
+        // === TABS ===
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        // === SLIDER UPDATES ===
+        ['seqLen', 'stateDim', 'selectivity'].forEach(id => {
+            const slider = document.getElementById(id);
+            const display = document.getElementById(id + 'Val');
+            slider.addEventListener('input', () => {
+                display.textContent = id === 'selectivity' ? parseFloat(slider.value).toFixed(2) : slider.value;
+            });
+        });
+
+        // === INIT ===
+        window.addEventListener('resize', updateComplexityChart);
+        updateComplexityChart();
+    </script>
+</body>
+</html>

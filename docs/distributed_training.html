@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distributed Training Visualizer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+.header { padding: 16px 32px; background: linear-gradient(135deg, #1a0a2e, #0a1628); border-bottom: 1px solid #2a2a4a; text-align: center; }
+.header h1 { font-size: 24px; background: linear-gradient(90deg, #7c4dff, #448aff, #26de81); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.header p { font-size: 13px; color: #888; margin-top: 6px; }
+
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+/* Strategy selector */
+.strategies { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+.strategy-btn { background: #111128; border: 2px solid #2a2a4a; border-radius: 12px; padding: 16px; cursor: pointer; text-align: center; transition: all 0.3s; }
+.strategy-btn:hover { border-color: #7c4dff; }
+.strategy-btn.active { border-color: #7c4dff; background: #1a1a3a; }
+.strategy-btn h3 { font-size: 14px; margin-bottom: 4px; color: #7c4dff; }
+.strategy-btn p { font-size: 11px; color: #888; }
+
+/* Canvas */
+.canvas-container { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+.canvas-container h2 { font-size: 18px; color: #7c4dff; margin-bottom: 16px; }
+canvas { width: 100%; height: 400px; border-radius: 8px; background: #08081a; display: block; }
+
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 16px; text-align: center; }
+.stat-card .label { font-size: 11px; color: #888; text-transform: uppercase; }
+.stat-card .value { font-size: 24px; font-weight: 700; margin: 8px 0; }
+.stat-card .subtext { font-size: 10px; color: #666; }
+
+/* Comparison table */
+.comparison { background: #111128; border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+.comparison h2 { font-size: 18px; color: #448aff; margin-bottom: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 10px; color: #888; border-bottom: 2px solid #2a2a4a; }
+td { padding: 10px; border-bottom: 1px solid #1a1a3a; }
+tr:hover td { background: #1a1a3a; }
+
+/* Controls */
+.controls { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; align-items: center; }
+.controls label { font-size: 13px; color: #888; }
+.controls input[type="range"] { accent-color: #7c4dff; }
+.controls select { background: #1a1a3a; color: #e0e0e0; border: 1px solid #2a2a4a; padding: 8px 12px; border-radius: 6px; }
+
+/* Animated elements */
+.gpu-box { position: absolute; border-radius: 8px; border: 2px solid; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; transition: all 0.5s; }
+.arrow { position: absolute; pointer-events: none; }
+.pulse { animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Distributed Training Visualizer</h1>
+    <p>Interactive exploration of data parallelism, model parallelism, and pipeline parallelism</p>
+</div>
+
+<div class="container">
+    <!-- Strategy selector -->
+    <div class="strategies">
+        <div class="strategy-btn active" onclick="selectStrategy('data')">
+            <h3>Data Parallel</h3>
+            <p>Same model, different data on each GPU</p>
+        </div>
+        <div class="strategy-btn" onclick="selectStrategy('tensor')">
+            <h3>Tensor Parallel</h3>
+            <p>Split individual layers across GPUs</p>
+        </div>
+        <div class="strategy-btn" onclick="selectStrategy('pipeline')">
+            <h3>Pipeline Parallel</h3>
+            <p>Split model layers into stages</p>
+        </div>
+        <div class="strategy-btn" onclick="selectStrategy('expert')">
+            <h3>Expert Parallel</h3>
+            <p>Split MoE experts across GPUs</p>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats">
+        <div class="stat-card">
+            <div class="label">GPUs</div>
+            <div class="value" id="numGpus" style="color:#7c4dff;">4</div>
+            <div class="subtext">Parallel workers</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Memory per GPU</div>
+            <div class="value" id="memPerGpu" style="color:#448aff;">4 GB</div>
+            <div class="subtext">Model + activations</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Communication</div>
+            <div class="value" id="commVol" style="color:#f9ca24;">AllReduce</div>
+            <div class="subtext">Gradient sync</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Speedup</div>
+            <div class="value" id="speedup" style="color:#26de81;">3.6x</div>
+            <div class="subtext">vs single GPU</div>
+        </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="canvas-container">
+        <h2 id="vizTitle">Data Parallelism</h2>
+        <canvas id="vizCanvas" height="400"></canvas>
+        <div class="controls">
+            <label>GPUs:</label>
+            <input type="range" id="gpuSlider" min="2" max="8" value="4" step="1" oninput="updateGpus()">
+            <label>Model Size:</label>
+            <select id="modelSize" onchange="updateViz()">
+                <option value="7">7B</option>
+                <option value="13">13B</option>
+                <option value="70" selected>70B</option>
+            </select>
+            <label>Animation:</label>
+            <select id="animMode" onchange="updateViz()">
+                <option value="forward">Forward Pass</option>
+                <option value="backward">Backward Pass</option>
+                <option value="allreduce">Gradient Sync</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Comparison table -->
+    <div class="comparison">
+        <h2>Strategy Comparison</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Strategy</th>
+                    <th>Memory per GPU</th>
+                    <th>Communication</th>
+                    <th>Speedup</th>
+                    <th>Best For</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="color:#7c4dff;font-weight:600;">Data Parallel</td>
+                    <td>Full model per GPU</td>
+                    <td>AllReduce gradients (high)</td>
+                    <td>~Nx (linear)</td>
+                    <td>Model fits in 1 GPU</td>
+                </tr>
+                <tr>
+                    <td style="color:#448aff;font-weight:600;">Tensor Parallel</td>
+                    <td>1/N of model per GPU</td>
+                    <td>AllReduce activations (high)</td>
+                    <td>~0.8-0.9Nx</td>
+                    <td>Very large models, fast interconnect</td>
+                </tr>
+                <tr>
+                    <td style="color:#f9ca24;font-weight:600;">Pipeline Parallel</td>
+                    <td>Stages of model per GPU</td>
+                    <td>Point-to-point (low)</td>
+                    <td>~0.6-0.8Nx</td>
+                    <td>Slow interconnect, large models</td>
+                </tr>
+                <tr>
+                    <td style="color:#26de81;font-weight:600;">Expert Parallel</td>
+                    <td>1/E of experts per GPU</td>
+                    <td>AllToAll (medium)</td>
+                    <td>~0.7-0.9Nx</td>
+                    <td>Mixture-of-Experts models</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let currentStrategy = 'data';
+let numGpus = 4;
+let animTime = 0;
+let animPhase = 'forward';
+
+// ========================================================================
+// CANVAS SETUP
+// ========================================================================
+const canvas = document.getElementById('vizCanvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+    const rect = canvas.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    canvas.width = W * 2;
+    canvas.height = H * 2;
+    ctx.setTransform(2, 0, 0, 2, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ========================================================================
+// STRATEGY DRAWING
+// ========================================================================
+function drawDataParallel() {
+    const gpuW = 100;
+    const gpuH = 160;
+    const gap = 20;
+    const startX = (W - (numGpus * (gpuW + gap) - gap)) / 2;
+    const startY = 100;
+
+    // Title
+    ctx.fillStyle = '#7c4dff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Each GPU has a full copy of the model', W / 2, 30);
+
+    // Draw each GPU
+    for (let i = 0; i < numGpus; i++) {
+        const x = startX + i * (gpuW + gap);
+        const y = startY;
+
+        // GPU box
+        const hue = 260 + i * 20;
+        ctx.strokeStyle = `hsl(${hue}, 70%, 55%)`;
+        ctx.lineWidth = 2;
+        ctx.fillStyle = `hsl(${hue}, 70%, 15%)`;
+        ctx.beginPath();
+        ctx.roundRect(x, y, gpuW, gpuH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        // GPU label
+        ctx.fillStyle = `hsl(${hue}, 70%, 70%)`;
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`GPU ${i}`, x + gpuW / 2, y + 20);
+
+        // Model layers inside GPU
+        const layers = 6;
+        for (let l = 0; l < layers; l++) {
+            const ly = y + 35 + l * 20;
+            ctx.fillStyle = `hsl(${hue}, 50%, ${25 + l * 5}%)`;
+            ctx.fillRect(x + 10, ly, gpuW - 20, 15);
+            ctx.fillStyle = `hsl(${hue}, 30%, 60%)`;
+            ctx.font = '9px monospace';
+            ctx.fillText(`L${l}`, x + gpuW / 2, ly + 11);
+        }
+
+        // Data batch indicator
+        const batchColors = ['#ff6b6b', '#448aff', '#26de81', '#f9ca24'];
+        ctx.fillStyle = batchColors[i % batchColors.length] + '60';
+        ctx.fillRect(x + 10, y + gpuH - 25, gpuW - 20, 15);
+        ctx.fillStyle = batchColors[i % batchColors.length];
+        ctx.font = '9px sans-serif';
+        ctx.fillText(`Batch ${i}`, x + gpuW / 2, y + gpuH - 14);
+    }
+
+    // Draw gradient sync arrows
+    const arrowY = startY + gpuH + 30;
+    ctx.fillStyle = '#f9ca24';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('AllReduce: Average gradients across all GPUs', W / 2, arrowY);
+
+    // Animated arrows between GPUs
+    for (let i = 0; i < numGpus - 1; i++) {
+        const x1 = startX + i * (gpuW + gap) + gpuW;
+        const x2 = startX + (i + 1) * (gpuW + gap);
+        const progress = (Math.sin(animTime * 2 + i) + 1) / 2;
+
+        ctx.strokeStyle = '#f9ca2460';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x1, arrowY + 20);
+        ctx.lineTo(x2, arrowY + 20);
+        ctx.stroke();
+
+        // Moving dot
+        const dotX = x1 + (x2 - x1) * progress;
+        ctx.beginPath();
+        ctx.arc(dotX, arrowY + 20, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#f9ca24';
+        ctx.fill();
+    }
+}
+
+function drawTensorParallel() {
+    const gpuW = 80;
+    const gpuH = 250;
+    const gap = 15;
+    const startX = (W - (numGpus * (gpuW + gap) - gap)) / 2;
+    const startY = 80;
+
+    ctx.fillStyle = '#448aff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Each GPU holds a slice of each layer', W / 2, 30);
+
+    const layers = 8;
+    for (let i = 0; i < numGpus; i++) {
+        const x = startX + i * (gpuW + gap);
+
+        // GPU box
+        ctx.strokeStyle = '#448aff';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = '#448aff15';
+        ctx.beginPath();
+        ctx.roundRect(x, startY, gpuW, gpuH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#448aff';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText(`GPU ${i}`, x + gpuW / 2, startY + 16);
+
+        // Layer shards
+        for (let l = 0; l < layers; l++) {
+            const ly = startY + 28 + l * 27;
+            const shardW = gpuW - 20;
+
+            ctx.fillStyle = `hsl(220, 60%, ${20 + l * 4}%)`;
+            ctx.fillRect(x + 10, ly, shardW, 22);
+            ctx.strokeStyle = '#448aff40';
+            ctx.strokeRect(x + 10, ly, shardW, 22);
+
+            ctx.fillStyle = '#88aaff';
+            ctx.font = '8px monospace';
+            ctx.fillText(`L${l}[${i}/${numGpus}]`, x + gpuW / 2, ly + 14);
+        }
+    }
+
+    // AllReduce between layers
+    const syncY = startY + gpuH + 25;
+    ctx.fillStyle = '#f9ca24';
+    ctx.font = '11px sans-serif';
+    ctx.fillText('AllReduce: Sync activations after each layer', W / 2, syncY);
+
+    // Animated sync
+    for (let l = 0; l < layers; l++) {
+        const ly = startY + 28 + l * 27 + 11;
+        const progress = (animTime * 0.5 + l * 0.1) % 1;
+
+        if (progress < 0.5) {
+            ctx.strokeStyle = '#f9ca2430';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(startX, ly);
+            ctx.lineTo(startX + numGpus * (gpuW + gap) - gap, ly);
+            ctx.stroke();
+        }
+    }
+}
+
+function drawPipelineParallel() {
+    const stageW = 150;
+    const stageH = 200;
+    const gap = 30;
+    const numStages = Math.min(numGpus, 4);
+    const startX = (W - (numStages * (stageW + gap) - gap)) / 2;
+    const startY = 80;
+
+    ctx.fillStyle = '#f9ca24';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Model split into pipeline stages', W / 2, 30);
+
+    const microBatches = 4;
+
+    for (let s = 0; s < numStages; s++) {
+        const x = startX + s * (stageW + gap);
+        const hue = 40 + s * 30;
+
+        // Stage box
+        ctx.strokeStyle = `hsl(${hue}, 70%, 55%)`;
+        ctx.lineWidth = 2;
+        ctx.fillStyle = `hsl(${hue}, 70%, 12%)`;
+        ctx.beginPath();
+        ctx.roundRect(x, startY, stageW, stageH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = `hsl(${hue}, 70%, 65%)`;
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(`Stage ${s}`, x + stageW / 2, startY + 20);
+        ctx.font = '10px sans-serif';
+        ctx.fillText(`GPU ${s}`, x + stageW / 2, startY + 35);
+
+        // Layers in stage
+        const layersPerStage = 6;
+        for (let l = 0; l < layersPerStage; l++) {
+            const ly = startY + 50 + l * 22;
+            ctx.fillStyle = `hsl(${hue}, 50%, ${22 + l * 5}%)`;
+            ctx.fillRect(x + 15, ly, stageW - 30, 18);
+        }
+
+        // Micro-batches passing through
+        const progress = (animTime * 0.3 + s * 0.15) % 1;
+        const mbY = startY + 50 + progress * (layersPerStage * 22);
+        ctx.beginPath();
+        ctx.arc(x + stageW / 2, mbY, 6, 0, Math.PI * 2);
+        ctx.fillStyle = `hsl(${hue}, 80%, 60%)`;
+        ctx.fill();
+    }
+
+    // Pipeline timeline
+    const timelineY = startY + stageH + 40;
+    ctx.fillStyle = '#888';
+    ctx.font = '11px sans-serif';
+    ctx.fillText('Pipeline bubble: idle time while filling the pipeline', W / 2, timelineY);
+
+    // Draw pipeline schedule
+    const cellW = 40;
+    const cellH = 25;
+    const schedStartX = (W - (microBatches + numStages - 1) * cellW) / 2;
+
+    for (let step = 0; step < microBatches + numStages - 1; step++) {
+        for (let stage = 0; stage < numStages; stage++) {
+            const x = schedStartX + step * cellW;
+            const y = timelineY + 15 + stage * cellH;
+            const mb = step - stage;
+
+            if (mb >= 0 && mb < microBatches) {
+                const hue = mb * 60;
+                ctx.fillStyle = `hsl(${hue}, 60%, 35%)`;
+                ctx.fillRect(x + 1, y + 1, cellW - 2, cellH - 2);
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(`F${mb}`, x + cellW / 2, y + cellH / 2 + 3);
+            } else {
+                ctx.fillStyle = '#1a1a3a';
+                ctx.fillRect(x + 1, y + 1, cellW - 2, cellH - 2);
+            }
+        }
+    }
+}
+
+function drawExpertParallel() {
+    const gpuW = 100;
+    const gpuH = 180;
+    const gap = 15;
+    const startX = (W - (numGpus * (gpuW + gap) - gap)) / 2;
+    const startY = 80;
+
+    ctx.fillStyle = '#26de81';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('MoE experts distributed across GPUs', W / 2, 30);
+
+    const expertsPerGpu = Math.ceil(8 / numGpus);
+
+    for (let i = 0; i < numGpus; i++) {
+        const x = startX + i * (gpuW + gap);
+
+        ctx.strokeStyle = '#26de81';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = '#26de8115';
+        ctx.beginPath();
+        ctx.roundRect(x, startY, gpuW, gpuH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#26de81';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText(`GPU ${i}`, x + gpuW / 2, startY + 16);
+
+        // Experts
+        for (let e = 0; e < expertsPerGpu; e++) {
+            const expertIdx = i * expertsPerGpu + e;
+            if (expertIdx >= 8) break;
+            const ey = startY + 30 + e * 35;
+            const isActive = (animTime * 2 + expertIdx) % 8 < 2;
+
+            ctx.fillStyle = isActive ? '#26de8140' : '#1a1a3a';
+            ctx.fillRect(x + 10, ey, gpuW - 20, 28);
+            ctx.strokeStyle = isActive ? '#26de81' : '#2a2a4a';
+            ctx.strokeRect(x + 10, ey, gpuW - 20, 28);
+
+            ctx.fillStyle = isActive ? '#26de81' : '#666';
+            ctx.font = '10px monospace';
+            ctx.fillText(`Expert ${expertIdx}`, x + gpuW / 2, ey + 17);
+        }
+    }
+
+    // Router
+    const routerY = startY + gpuH + 25;
+    ctx.fillStyle = '#f9ca24';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('Router: Each token sent to top-2 experts (AllToAll communication)', W / 2, routerY);
+}
+
+// ========================================================================
+// MAIN RENDER
+// ========================================================================
+function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    switch (currentStrategy) {
+        case 'data': drawDataParallel(); break;
+        case 'tensor': drawTensorParallel(); break;
+        case 'pipeline': drawPipelineParallel(); break;
+        case 'expert': drawExpertParallel(); break;
+    }
+
+    animTime += 0.016;
+    requestAnimationFrame(render);
+}
+
+// ========================================================================
+// CONTROLS
+// ========================================================================
+function selectStrategy(strategy) {
+    currentStrategy = strategy;
+    document.querySelectorAll('.strategy-btn').forEach(b => b.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+
+    const titles = {
+        data: 'Data Parallelism',
+        tensor: 'Tensor Parallelism',
+        pipeline: 'Pipeline Parallelism',
+        expert: 'Expert Parallelism',
+    };
+    document.getElementById('vizTitle').textContent = titles[strategy];
+    updateStats();
+}
+
+function updateGpus() {
+    numGpus = parseInt(document.getElementById('gpuSlider').value);
+    updateStats();
+}
+
+function updateViz() {
+    updateStats();
+}
+
+function updateStats() {
+    const modelSize = parseInt(document.getElementById('modelSize').value);
+    document.getElementById('numGpus').textContent = numGpus;
+
+    let memPerGpu, commType, speedup;
+
+    switch (currentStrategy) {
+        case 'data':
+            memPerGpu = modelSize * 2; // FP16
+            commType = 'AllReduce';
+            speedup = (numGpus * 0.9).toFixed(1);
+            break;
+        case 'tensor':
+            memPerGpu = modelSize * 2 / numGpus;
+            commType = 'AllReduce';
+            speedup = (numGpus * 0.85).toFixed(1);
+            break;
+        case 'pipeline':
+            memPerGpu = modelSize * 2 / numGpus;
+            commType = 'P2P';
+            speedup = (numGpus * 0.7).toFixed(1);
+            break;
+        case 'expert':
+            memPerGpu = modelSize * 2 * 1.5 / numGpus; // Experts + shared
+            commType = 'AllToAll';
+            speedup = (numGpus * 0.8).toFixed(1);
+            break;
+    }
+
+    document.getElementById('memPerGpu').textContent = memPerGpu >= 1000 ?
+        (memPerGpu / 1000).toFixed(1) + ' TB' : memPerGpu.toFixed(0) + ' GB';
+    document.getElementById('commVol').textContent = commType;
+    document.getElementById('speedup').textContent = speedup + 'x';
+}
+
+// Init
+updateStats();
+render();
+</script>
+</body>
+</html>
